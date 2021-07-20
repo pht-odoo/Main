@@ -1,0 +1,28 @@
+<odoo>
+  <data>
+    <record model="ir.ui.view" id="crossovered_budget_view_form">
+        <field name="name">crossovered.budget.view.form</field>
+        <field name="model">crossovered.budget</field>
+        <field name="inherit_id" ref="account_budget.crossovered_budget_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="replace">
+                <tree string="Budget Lines" decoration-danger="percentage &gt; 1" editable="bottom">
+                    <field name="general_budget_id" domain="['|', ('company_id', '=', False), ('company_id', '=', parent.company_id)]" />
+                    <field name="analytic_account_id" domain="['|', ('company_id', '=', False), ('company_id', '=', parent.company_id)]" groups="analytic.group_analytic_accounting"/>
+                    <field name="date_from"/>
+                    <field name="date_to"/>
+                    <field name="paid_date" groups="base.group_no_one"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="planned_amount" sum="Planned Amount"/>
+                    <field name="practical_amount" sum="Practical Amount"/>
+                    <field name="theoritical_amount" sum="Theoretical Amount"/>
+                    <field name="percentage"  widget="percentage" />
+                    <button type="object" name="action_open_budget_entries" string="Entries..."
+                            icon="fa-arrow-circle-o-right"/>
+                    <field name="is_above_budget" invisible="1"/>
+                </tree>
+            </xpath>
+        </field>
+    </record>
+  </data>
+</odoo>
