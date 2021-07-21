@@ -6,8 +6,8 @@ from odoo import models, fields, api
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
-    analytic_account_id = fields.Many2one('account.analytic.account', required=True, states={'done': [('readonly', True)]})
-    account_id = fields.Many2one('account.account', required=True, states={'done': [('readonly', True)]})
+    analytic_account_id = fields.Many2one('account.analytic.account', states={'done': [('readonly', True)]})
+    account_id = fields.Many2one('account.account', states={'done': [('readonly', True)]})
 
     @api.model
     def create(self, vals):
