@@ -17,7 +17,7 @@ class CrossoveredBudgetLines(models.Model):
     sale_ids = fields.Many2many('sale.order', string="Sale Orders")
     purchase_ids = fields.Many2many('purchase.order', string="Purchase Orders")
     planned_amount = fields.Monetary(
-        'Planned Amount', required=True, store=True, readonly=False,
+        'Planned Amount', store=True, readonly=True,
         help="Amount you plan to earn/spend. Record a positive amount if it is a revenue and a negative amount if it is a cost.",
         compute="_compute_planned_amount")
 
