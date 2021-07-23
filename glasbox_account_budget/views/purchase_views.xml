@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='origin']" position="after">
-                <field name="analytic_account_id" context="{'default_partner_id':parent.partner_id}" domain="['|', ('company_id', '=', False), ('company_id', '=', parent.company_id)]"/>
+                <field name="analytic_account_id"/>
                 <field name="account_id"/>
             </xpath>
         </field>

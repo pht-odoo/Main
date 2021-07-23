@@ -6,7 +6,7 @@ from odoo import models, fields, api
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    account_id = fields.Many2one('account.account', required=True, states={'done': [('readonly', True)]})
+    account_id = fields.Many2one('account.account', states={'done': [('readonly', True)]})
 
     @api.model
     def create(self, vals):
