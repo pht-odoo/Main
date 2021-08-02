@@ -17,7 +17,7 @@ class CrossoveredBudgetLines(models.Model):
     sale_ids = fields.Many2many('sale.order', string="Sale Orders")
     purchase_ids = fields.Many2many('purchase.order', string="Purchase Orders")
     planned_amount = fields.Monetary(
-        'Planned Amount', store=True, readonly=True,
+        'Planned Amount', store=True, readonly=True, default=0,
         help="Amount you plan to earn/spend. Record a positive amount if it is a revenue and a negative amount if it is a cost.",
         compute="_compute_planned_amount")
 
@@ -28,7 +28,7 @@ class CrossoveredBudgetLines(models.Model):
             for sale in line.sale_ids:
                 line.planned_amount += sale.amount_untaxed
             for purchase in line.purchase_ids:
-                line.planned_amount += purchase.amount_untaxed
+                line.planned_amount -= purchase.amount_untaxed
 
     @api.depends('planned_amount','practical_amount')
     def _compute_theoritical_amount(self):
