@@ -15,7 +15,7 @@
                     <field name="currency_id" invisible="1"/>
                     <field name="planned_amount" sum="Planned Amount"/>
                     <field name="practical_amount" sum="Practical Amount"/>
-                    <field name="theoritical_amount" sum="Theoretical Amount"/>
+                    <field name="theoritical_amount"/>
                     <field name="percentage"  widget="percentage" />
                     <button type="object" name="action_open_budget_entries" string="Entries..."
                             icon="fa-arrow-circle-o-right"/>
