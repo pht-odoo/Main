@@ -43,6 +43,21 @@ class CrossoveredBudgetLines(models.Model):
             else:
                 line.percentage = 0.00
 
+    def action_open_budget_entries(self):
+        if self.analytic_account_id:
+            # if there is an analytic account, then the analytic items are loaded
+            action = self.env['ir.actions.act_window']._for_xml_id('analytic.account_analytic_line_action_entries')
+            action['domain'] = [('account_id', '=', self.analytic_account_id.id),
+                                ]
+            if self.general_budget_id:
+                action['domain'] += [('general_account_id', 'in', self.general_budget_id.account_ids.ids)]
+        else:
+            # otherwise the journal entries booked on the accounts of the budgetary postition are opened
+            action = self.env['ir.actions.act_window']._for_xml_id('account.action_account_moves_all_a')
+            action['domain'] = [('account_id', 'in', self.general_budget_id.account_ids.ids),
+                                ]
+        return action
+
     def _compute_practical_amount(self):
         for line in self:
             acc_ids = line.general_budget_id.account_ids.ids
@@ -61,4 +76,3 @@ class CrossoveredBudgetLines(models.Model):
                 line.practical_amount = self.env.cr.fetchone()[0] or 0.0
             else:
                 line.practical_amount = 0.0
-
