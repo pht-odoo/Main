@@ -1,0 +1,17 @@
+<odoo>
+  <data>
+    <record model="ir.ui.view" id="view_order_form_inherit_glasbox">
+        <field name="name">sale.order.view.form</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='analytic_account_id']" position="replace">
+            </xpath>
+            <xpath expr="//field[@name='payment_term_id']" position="after">
+                <field name="analytic_account_id" context="{'default_partner_id':partner_invoice_id, 'default_name':name}" groups="analytic.group_analytic_accounting" force_save="1"/>
+                <field name="account_id"/>
+            </xpath>
+        </field>
+    </record>
+  </data>
+</odoo>
