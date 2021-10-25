@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-inherit="web_gantt.GanttView" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_gantt_row_sidebar')]" position="attributes">
+            <attribute name='t-attf-class'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'col-1 o_gantt_row_sidebar text-center':''}}</attribute>
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'white-space: nowrap;':''}}</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o_gantt_header_container')]" position="attributes">
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'min-width: 100%; flex-wrap: nowrap;':''}}</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('container-fluid')]" position="attributes">
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'overflow-x: scroll;':''}}</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o_gantt_header_scale')]" position="attributes">
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'flex-flow: row':''}}</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o_gantt_header_slots')]" position="attributes">
+            <attribute name="t-attf-class">{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'col-4 d-flex flex-column o_gantt_header_slots':''}}</attribute>
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'min-width: 100%; background: white;':''}}</attribute>
+        </xpath>
+        <xpath expr="//div[@class='o_gantt_view']/div/div/div" position="after">
+            <t t-if="widget.fieldsInfo and widget.fieldsInfo.project_id and widget.fieldsInfo.project_id.relation == 'project.project'">
+                <div class="col-1 o_gantt_row_sidebar text-center"><span class="font-weight-bold" style="white-space: nowrap;">Task Mode</span></div>
+                <div class="col-1 o_gantt_row_sidebar text-center"><span class="font-weight-bold" style="white-space: nowrap;">Start Date</span></div>
+                <div class="col-1 o_gantt_row_sidebar text-center"><span class="font-weight-bold" style="white-space: nowrap;">End Date</span></div>
+                <div class="col-1 o_gantt_row_sidebar text-center"><span class="font-weight-bold" style="white-space: nowrap;">Completion Date</span></div>
+                <div class="col-1 o_gantt_row_sidebar text-center"><span class="font-weight-bold" style="white-space: nowrap;">Assigned To</span></div>
+            </t>
+        </xpath>
+    </t>
+    <t t-inherit="web_gantt.GanttView.Row" t-inherit-mode="extension">
+        <xpath expr="//div[@t-name='GanttView.Row']/div[hasclass('o_gantt_slots_container')]" position="attributes">
+            <attribute name='t-attf-class'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'o_gantt_slots_container col':''}}</attribute>
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'min-width: 100%; background: white;':''}}</attribute>
+        </xpath>
+        <xpath expr="//div[@t-name='GanttView.Row']/div[hasclass('o_gantt_slots_container')]/div" position="attributes">
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'border-bottom: 1px solid #ced4da;':''}}</attribute>
+        </xpath>
+        <xpath expr="//div[@t-name='GanttView.Row']" position="attributes">
+            <attribute name='t-attf-style'>{{widget.fieldsInfo &amp;&amp;widget.fieldsInfo.project_id &amp;&amp;widget.fieldsInfo.project_id.relation == 'project.project' ? 'flex-flow: row':''}}</attribute>
+        </xpath>
+        <xpath expr="//t[@t-foreach='slot.pills']" position="inside">
+            <div t-if="widget.isTotal"
+                 class="o_gantt_pill_wrapper position-absolute text-center d-flex justify-content-center"
+                 t-attf-style="width: #{pill.width}; #{widget.isRTL ? 'right' : 'left'}: #{pill.leftMargin}%;">
+                <div t-att-data-id="pill.id"
+                     t-attf-class="o_gantt_pill o_gantt_consolidated_pill"
+                     t-att-style="'width:' + pill.colors + '%;' + 'height:' + pill.totalHeight + '%;'"/>
+<!--                 <span class="o_gantt_consolidated_pill_title position-absolute text-truncate px-1" t-esc="pill.display_name"/> -->
+            </div>
+            <div t-elif="pill.consolidated"
+                 t-attf-class="o_gantt_pill_wrapper position-absolute text-center o_gantt_consolidated_wrapper #{widget.options.isGroup ? 'o_gantt_pill_wrapper_group' : ''}"
+                 t-attf-style="width: #{pill.width}; #{widget.isRTL ? 'right' : 'left'}: #{pill.leftMargin}%;">
+                <div t-att-data-id="pill.id"
+                     t-attf-class="o_gantt_pill o_gantt_consolidated_pill #{pill.status? 'bg-' + pill.status + ' border-' + pill.status : ''}  #{!widget.options.isGroup ? pill.decorations.join(' ') : ''}  #{'_color' in pill ? 'o_gantt_color_' + pill._color : ''} #{widget.progressField? 'o_gantt_progress': ''}"
+                     >
+                </div>
+            </div>
+            <div t-else=""
+                 t-attf-class="o_gantt_pill_wrapper position-absolute text-center #{widget.options.isGroup ? 'o_gantt_pill_wrapper_group' : ''}"
+                 t-attf-style="width: #{pill.width}; display: flex; margin-top: #{pill.topPadding}px; #{widget.isRTL ? 'right' : 'left'}: #{pill.leftMargin}%;">
+                <div
+                    t-att-data-id="pill.id"
+                    t-attf-class="o_gantt_pill position-relative"
+                    t-attf-style="width: #{onhold + '%'}; background-color: #{onhold > 0 ? 'black' : '#71959e'}; #{widget.options.isGroup ? pill.style : ''}"
+                    />
+                <div
+                    t-att-data-id="pill.id"
+                    t-attf-class="o_gantt_pill position-relative"
+                    t-attf-style="width: #{duration + '%'}; background-color: #{duration > 0 ? '#A7C7E7' : '#71959e'}; #{widget.options.isGroup ? pill.style : ''}"
+                    />
+                <div
+                    t-att-data-id="pill.id"
+                    t-attf-class="o_gantt_pill position-relative"
+                    t-attf-style="width: #{buffer + '%'}; background-color: #{buffer > 0 ? '#9FE2BF' : '#71959e'}; #{widget.options.isGroup ? pill.style : ''}"
+                    />
+                <div
+                    t-att-data-id="pill.id"
+                    t-attf-class="o_gantt_pill position-relative"
+                    t-attf-style="width: #{delay + '%'}; background-color: #{delay > 0 ? 'yellow' : '#71959e'}; #{widget.options.isGroup ? pill.style : ''}"
+                    />
+            </div>
+        </xpath>
+        <xpath expr="//div[@t-if='!widget.options.hideSidebar']" position="after">
+            <t t-if="widget.fieldsInfo and widget.fieldsInfo.project_id and widget.fieldsInfo.project_id.relation == 'project.project'">
+                <div t-if="!widget.options.hideSidebar" t-attf-class="col-1 o_gantt_row_sidebar flex-grow-1 flex-shrink-0 position-relative #{!widget.name ? 'o_gantt_row_sidebar_empty' : '' }" t-attf-style="white-space: nowrap;">
+                    <div class="text-center">
+                        <t t-foreach="widget.pills" t-as="pill">
+                            <t t-if="pill.completion_date &amp;&amp; pill.completion_date !== false">
+                                <i title="Finished" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
+                            </t>
+                            <t t-else="pill.task_delay || pill.check_completion_date || pill.date_end || pill.milestone || pill.on_hold || pill.check_l_end_date || pill.l_end_date || pill.check_c_date">
+                                <i title="Delay" t-if="pill.task_delay &amp;&amp; pill.task_delay !== 0" class="fa fa-clock-o" style="color: #F0E130;"/>
+                                <i title="Early Date" t-if="pill.check_completion_date &amp;&amp; pill.check_completion_date == false || pill.check_c_date &amp;&amp; pill.check_c_date == true || pill.date_end == false" class="fa fa-trophy" style="color: #61B329"/>
+                                <i title="Milestone" t-if="pill.milestone &amp;&amp; pill.milestone == true || pill.check_c_date &amp;&amp; pill.check_c_date == true" class="fa fa-flag" style="color: #AAFF00;"/>
+                                <i title="On Hold"
+                                t-if="pill.on_hold &amp;&amp; pill.on_hold !== 0 || pill.check_c_date &amp;&amp; pill.check_c_date == true" class="fa fa-hourglass-half" style="color: #000000;"/>
+                                <i title="Overdue" t-if="pill.check_l_end_date &amp;&amp; pill.check_l_end_date == false || pill.l_end_date &amp;&amp; pill.l_end_date == false || pill.check_c_date &amp;&amp; pill.check_c_date == true" class="fa fa-exclamation" style="color: #FF0000"/>
+                                <t t-if="!widget.isGroup"><br/></t>
+                            </t>
+                        </t>
+                    </div>
+                </div>
+                <div t-if="!widget.options.hideSidebar" t-attf-class="col-1 o_gantt_row_sidebar flex-grow-1 flex-shrink-0 position-relative #{!widget.name ? 'o_gantt_row_sidebar_empty' : '' }" t-attf-style="white-space: nowrap;">
+                    <div class="text-center">
+                        <t t-foreach="widget.pills" t-as="pill">
+                            <span t-if="pill.date_start" t-esc="pill.date_start.format('DD/MM/YYYY')"/>
+                            <t t-if="!widget.isGroup"><br/></t>
+                        </t>
+                    </div>
+                </div>
+                <div t-if="!widget.options.hideSidebar" t-attf-class="col-1 o_gantt_row_sidebar flex-grow-1 flex-shrink-0 position-relative #{!widget.name ? 'o_gantt_row_sidebar_empty' : '' }" t-attf-style="white-space: nowrap;">
+                    <div class="text-center">
+                        <t t-esc="console.log('widget:-  ',widget)"/>
+                        <t t-foreach="widget.pills" t-as="pill">
+                            <span t-if="pill.date_end" t-esc="pill.date_end.format('DD/MM/YYYY')"/>
+                            <t t-if="!widget.isGroup"><br/></t>
+                        </t>
+                    </div>
+                </div>
+                <div t-if="!widget.options.hideSidebar" t-attf-class="col-1 o_gantt_row_sidebar flex-grow-1 flex-shrink-0 position-relative #{!widget.name ? 'o_gantt_row_sidebar_empty' : '' }" t-attf-style="white-space: nowrap;">
+                    <div class="text-center">
+                        <t t-foreach="widget.pills" t-as="pill">
+                            <span t-if="pill.completion_date" t-esc="pill.completion_date.format('DD/MM/YYYY')"/>
+                            <t t-if="!widget.isGroup"><br/></t>
+                        </t>
+                    </div>
+                </div>
+                <div t-if="!widget.options.hideSidebar" t-attf-class="col-1 o_gantt_row_sidebar flex-grow-1 flex-shrink-0 position-relative #{!widget.name ? 'o_gantt_row_sidebar_empty' : '' }" t-attf-style="white-space: nowrap;">
+                    <div class="text-center">
+                        <t t-foreach="widget.pills" t-as="pill">
+                            <span t-if="pill.user_id" t-esc="pill.user_id[1]"/>
+                            <t t-if="!widget.isGroup"><br/></t>
+                        </t>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </t>
+</templates>
