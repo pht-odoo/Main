@@ -25,7 +25,6 @@
         'data/mail_template_data.xml',
         'views/assets.xml',
         'views/task_views.xml',
-        'views/gantt_portal_templates.xml',
     ],
     'qweb': [
         "static/src/xml/gantt_view.xml",
