@@ -1,4 +1,4 @@
-import json
+
 from datetime import timedelta, datetime, date
 from odoo.exceptions import ValidationError, UserError
 from odoo import models, fields, api
@@ -187,7 +187,7 @@ class TaskDependency(models.Model):
             template = r.env.ref('project_glasbox.task_completion_email_template')
             tasks = r.env['project.task'].search([('dependency_task_ids.task_id', 'in', r.ids)])
             tasks.message_post_with_template(template_id=template.id)
-   
+
     def write(self, vals):
         # OVERRIDE to write method
         '''
@@ -195,8 +195,8 @@ class TaskDependency(models.Model):
             Until A2's completion date is set, A3 starting date will get updated according to 
             A2's completion date (because A2 is the latest completion date then A1)
         '''
+        res = super().write(vals)
         for r in self:
-            res = super(TaskDependency, r).write(vals)
             task_count = r.count_tasks()
             # r._dependent_l_start_end_date()
             if 'completion_date' in vals:
@@ -210,7 +210,7 @@ class TaskDependency(models.Model):
                 tasks.write({'date_start': date_start})
                 r._send_mail_template()
 
-            return res
+        return res
 
     @api.onchange('completion_date')
     def onchange_completion_date(self):
@@ -263,8 +263,11 @@ class TaskDependency(models.Model):
         for task in self:
             if task.completion_date == False or task.date_end == False:
                 task.check_completion_date = False
-            else:
-                task.check_completion_date = task.completion_date <= task.date_end
+            elif task.completion_date and task.date_end:
+                if task.completion_date <= task.date_end:
+                    task.check_completion_date = True
+                else:
+                    task.check_completion_date = False
 
     @api.depends('completion_date', 'l_end_date')
     def _compute_check_l_end_date(self):
