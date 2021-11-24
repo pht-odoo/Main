@@ -82,7 +82,7 @@
 <!--                 <div
                     t-att-data-id="pill.id"
                     t-attf-class="o_gantt_pill position-relative"
-                    t-attf-style="width: #{3 + '%'}; background-color: #{delay > 0 ? 'red' : 'red'}; #{widget.options.isGroup ? pill.style : ''}"
+                    t-attf-style="width: #{diff + '%'}; background-color: #{delay > 0 ? 'red' : 'red'}; #{widget.options.isGroup ? pill.style : ''}"
                     /> -->
             </div>
         </xpath>
@@ -95,6 +95,7 @@
                                 <i title="Finished" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
                             </t>
                             <t t-else="pill.task_delay || pill.check_completion_date || pill.date_end || pill.milestone || pill.on_hold || pill.check_l_end_date || pill.l_end_date || pill.check_c_date">
+<!--                                 <i title="Delay" t-if="pill.task_delay &amp;&amp; pill.task_delay !== 0" class="fa fa-clock-o" style="color: #F0E130;"/> -->
                                 <i title="Delay" t-if="pill.task_delay &amp;&amp; pill.task_delay !== 0" class="fa fa-clock-o" style="color: #F0E130;"/>
                                 <i title="Ahead Of Schedule" t-if="pill.check_completion_date &amp;&amp; pill.check_completion_date !== true" class="fa fa-star" style="color: #0000FF;"/>
                                 <i title="Early Date" t-if="pill.check_completion_date &amp;&amp; pill.check_completion_date == false || pill.check_c_date &amp;&amp; pill.check_c_date == true || pill.date_end == false" class="fa fa-trophy" style="color: #61B329"/>

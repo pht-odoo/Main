@@ -44,6 +44,12 @@ class TaskDependency(models.Model):
     def get_calendar(self):
         return self.env.company.resource_calendar_id
 
+    def check_weekends(self):
+        for r in self:
+            resource_calendar = r.get_calendar()
+            day_of_week = resource_calendar.attendance_ids.dayofweek
+
+
     def get_global_ids(self):
         return self.get_calendar().global_leave_ids
 
@@ -58,7 +64,7 @@ class TaskDependency(models.Model):
             resource_calendar = r.get_calendar()
             sum_hours = sum((attendance.hour_to - attendance.hour_from) for attendance in resource_calendar.attendance_ids)
             hour = resource_calendar.hours_per_day
-            # tz = resource_calendar.tz
+            day_of_week = resource_calendar.attendance_ids
             return (sum_hours / hour)
 
     def get_holidays(self, start_date):
@@ -140,25 +146,20 @@ class TaskDependency(models.Model):
                     duration -= 1
                 return previous_date
 
-    def check_date_weekend(self, start_date):
+    def check_date_weekend(self, date):
         '''
             Method for to check whether the 'date' is in weekend or not.
             If the date is in weekend then we will update that date according to company's workday.
-            If date is not in weekend then we will update that date through one day.
         '''
+        weekdays = 7
         for r in self:
-            weekdays = 7
-            work_days = r.get_work_days()
-            no_of_days = weekdays - work_days
+            resource_calendar = r.get_calendar()
+            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+            if date and str(date.weekday()) not in day_of_week:
+                date = date + timedelta(days=weekdays - date.weekday())
+            return date
 
-            if start_date and start_date.weekday() >= work_days:
-                start_date = start_date + timedelta(days=no_of_days)
-            elif start_date and start_date.weekday() < work_days:
-                start_date = start_date + timedelta(days=1)
-        
-            return start_date
-
-    def date_in_holiday(self, start_date):
+    def date_in_holiday(self, date):
         '''
             Method for to check 'date' is in holiday or not.
             If 'date' is in holiday then we will increment date by one day and check that 'date' is in weekend or not.
@@ -166,15 +167,15 @@ class TaskDependency(models.Model):
         '''
         for r in self:
             work_days = r.get_work_days()
-            holidays = r.get_holidays(start_date)
-            if start_date not in holidays:
-                new_start_date = r.check_date_weekend(start_date)
+            holidays = r.get_holidays(date)
+            if date not in holidays:
+                new_date = r.check_date_weekend(date)
 
-            for start_date in holidays:
-                start_date += timedelta(days=1)
-                new_start_date = r.check_date_weekend(start_date)
+            for date in holidays:
+                date += timedelta(days=1)
+                new_date = r.check_date_weekend(date)
 
-            return new_start_date
+            return new_date
 
     def _send_mail_template(self):
         for r in self:
@@ -207,7 +208,7 @@ class TaskDependency(models.Model):
                         'date_start': False,
                         'date_end': False
                         })
-                tasks.write({'date_start': date_start})
+                tasks.write({'date_start': r.date_in_holiday(date_start)})
                 r._send_mail_template()
 
         return res
@@ -316,6 +317,9 @@ class TaskDependency(models.Model):
                     '''
                     if task_count == 1 and r.dependency_task_ids.task_id['first_task'] == True:
                         r.accumulated_delay = r.dependency_task_ids.task_id['task_delay'] + r.task_delay
+                    elif task_count > 1 and False not in completion_date_lst and all(r.dependency_task_ids.task_id.mapped('first_task')):
+                        delay_lst = r.dependency_task_ids.task_id.mapped('task_delay')
+                        r.accumulated_delay = max(sorted(delay_lst)) + r.task_delay
                     else:
                         delay_lst = r.dependency_task_ids.task_id.mapped('accumulated_delay')
                         r.accumulated_delay = max(sorted(delay_lst)) + r.task_delay
@@ -324,12 +328,13 @@ class TaskDependency(models.Model):
     def _compute_start_date(self):
         for r in self:
             task_count = r.count_tasks()
+            work_days = r.get_work_days()
             if task_count == 0:
                 if r.dependency_task_ids:
                     r.date_start = False
                     r.date_end = False
                 elif r.date_start:
-                    r.date_start = r.date_start # if task has no dependent tasks then it will use current task's date_start
+                    r.date_start = r.date_in_holiday(r.date_start) # if task has no dependent tasks then it will use current task's date_start
             else:
                 if r.first_task != True and r.dependency_task_ids:
                     '''

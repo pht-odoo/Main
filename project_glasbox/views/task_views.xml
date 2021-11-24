@@ -11,6 +11,7 @@
                 scales="day,week,month,year"
                 color="project_color"
                 string="Project"
+                disable_drag_drop = "1"
                 thumbnails="{'user_id': 'image_128'}"
                 js_class="project_ganttview"
                 display_unavailability="1"
@@ -38,7 +39,8 @@
                 <div class="o_kanban_inline_block d-flex flex-row">
                     <i title="Ahead Of Schedule" attrs="{'invisible':[('check_completion_date', '=', False)]}" class="fa fa-star" style="color: #0000FF;"/>
                     <i title="Finished" attrs="{'invisible':['|', ('completion_date', '=', False), ('check_completion_date', '=', True)]}" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
-                    <i title="Delay" attrs="{'invisible':['|', ('task_delay', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-clock-o" style="color: #F0E130;"/>
+<!--                     <i title="Delay" attrs="{'invisible':['|', ('task_delay', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-clock-o" style="color: #F0E130;"/> -->
+                    <i title="Delay" attrs="{'invisible':[('task_delay', '=', 0)]}" class="fa fa-clock-o" style="color: #F0E130;"/>
                     <i title="Early Date" attrs="{'invisible':['|', ('check_completion_date', '=', False), ('check_c_date', '=', True), '|', ('date_end', '=', False)]}" class="fa fa-trophy" style="color: #61B329"/>
                     <i title="Milestone" attrs="{'invisible':['|', ('milestone', '!=', True), ('check_c_date', '=', True)]}" class="fa fa-flag" style="color: #AAFF00;"/>
                     <i title="On Hold" attrs="{'invisible':['|', ('on_hold', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-hourglass-half" style="color: #000000;"/>
@@ -65,7 +67,8 @@
                 <field name='check_c_date' invisible='1'/>
                 <button title="Ahead Of Schedule" class='btn-schedule' attrs="{'invisible':[('check_completion_date', '=', False)]}" icon="fa-star"/>
                 <button title="Finished" class='btn-finished' attrs="{'invisible':['|', ('completion_date', '=', False), ('check_completion_date', '=', True)]}" icon="fa-check-square-o"/>
-                <button class="btn-delay" title="Delay" attrs="{'invisible':['|', ('task_delay', '=', 0), ('check_c_date', '=', True)]}" icon="fa-clock-o"/>
+<!--                 <button class="btn-delay" title="Delay" attrs="{'invisible':['|', ('task_delay', '=', 0), ('check_c_date', '=', True)]}" icon="fa-clock-o"/> -->
+                <button class="btn-delay" title="Delay" attrs="{'invisible':[('task_delay', '=', 0)]}" icon="fa-clock-o"/>
                 <button class="btn-early" title="Early Date" attrs="{'invisible':['|', ('check_completion_date', '=', False), ('check_c_date', '=', True), '|', ('date_end', '=', False)]}" icon="fa-twitter"/>
                 <button class="btn-milestone" title="Milestone" attrs="{'invisible':['|', ('milestone', '!=', True), ('check_c_date', '=', True)]}" icon="fa-flag"/>
                 <button class="btn-hold" title="On Hold" attrs="{'invisible':['|', ('on_hold', '=', 0), ('check_c_date', '=', True)]}" icon="fa-hourglass-half"/>
@@ -127,7 +130,8 @@
                 <div class="oe_stat_button h1 d-flex flex-row">
                     <i title="Ahead Of Schedule" attrs="{'invisible':[('check_completion_date', '=', False)]}" class="fa fa-star" style="color: #0000FF;"/>
                     <i title="Finished" attrs="{'invisible':['|', ('completion_date', '=', False), ('check_completion_date', '=', True)]}" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
-                    <i title="Delay" attrs="{'invisible':['|', ('task_delay', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-clock-o" style="color: #F0E130;"/>
+<!--                     <i title="Delay" attrs="{'invisible':['|', ('task_delay', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-clock-o" style="color: #F0E130;"/> -->
+                    <i title="Delay" attrs="{'invisible':[('task_delay', '=', 0)]}" class="fa fa-clock-o" style="color: #F0E130;"/>
                     <i title="Early Date" attrs="{'invisible':['|', ('check_completion_date', '=', False), ('check_c_date', '=', True), '|', ('date_end', '=', False)]}" class="fa fa-trophy" style="color: #61B329"/>
                     <i title="Milestone" attrs="{'invisible':['|', ('milestone', '!=', True), ('check_c_date', '=', True)]}" class="fa fa-flag" style="color: #AAFF00;"/>
                     <i title="On Hold" attrs="{'invisible':['|', ('on_hold', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-hourglass-half" style="color: #000000;"/>

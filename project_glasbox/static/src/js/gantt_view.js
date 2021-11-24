@@ -45,14 +45,30 @@ var CustomGanttRow = GanttRow.extend({
             }
         }
 
+        // const date_diff_indays = function(date1, date2) {
+        // dt1 = new Date(date1);
+        // dt2 = new Date(date2);
+        // return Math.floor((Date.UTC(dt2.getFullYear(), dt2.getMonth(), dt2.getDate()) - Date.UTC(dt1.getFullYear(), dt1.getMonth(), dt1.getDate()) ) /(1000 * 60 * 60 * 24));
+        // }
+
         for(const pill in pills){
             if (pills && pills[pill].delay  > 0 || pills[pill].duration > 0 || pills[pill].buffer_time > 0 || pills[pill].on_hold > 0) {
                 const delay = pills[pill].task_delay
                 const duration = pills[pill].planned_duration
                 const buffer = pills[pill].buffer_time
                 const hold = pills[pill].on_hold
-                const l_end_date = 1
+                // const l_end_date = 1
                 const wd = parseInt(100/(delay+duration+buffer+hold))
+                // console.log("!!!!!!!!!!!!!!! pills.l_end_date:- ", pills[pill].l_end_date)
+                // console.log("&&&&&&&&&&&&&&& pills.date_end:- ", pills[pill].date_end)
+                // const oneDay = 24 * 60 * 60 * 1000;
+                // const LEndDate = new Date(pills[pill].l_end_date['_i'])
+                // const DateEnd = new Date(pills[pill].date_end['_i'])
+                // console.log("^^^^^^^^^^^^^^^ LEndDate:- ", LEndDate)
+                // console.log("############### DateEnd:- ", DateEnd)
+                // const diff = Math.floor((Date.UTC(LEndDate.getFullYear(), LEndDate.getMonth(), LEndDate.getDate()) - Date.UTC(DateEnd.getFullYear(), DateEnd.getMonth(), DateEnd.getDate()) ) /(1000 * 60 * 60 * 24));
+                // console.log("%%%%%%%%%%%%% diff:- ", diff)
+                // pills.DiffDates = diff
                 pills.l_end_date = wd + 1
                 pills.delayWidth = delay * wd
                 pills.durationWidth = duration * wd
@@ -96,6 +112,7 @@ var CustomGanttRow = GanttRow.extend({
             }
 
             this.slots.push({
+                // diff: pills.DiffDates,
                 delay: pills.delayWidth,
                 buffer: pills.bufferWidth,
                 duration: pills.durationWidth,
