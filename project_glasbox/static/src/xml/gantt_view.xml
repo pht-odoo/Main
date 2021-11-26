@@ -91,18 +91,16 @@
                 <div t-if="!widget.options.hideSidebar" t-attf-class="col-1 o_gantt_row_sidebar flex-grow-1 flex-shrink-0 position-relative #{!widget.name ? 'o_gantt_row_sidebar_empty' : '' }" t-attf-style="white-space: nowrap;">
                     <div class="text-center">
                         <t t-foreach="widget.pills" t-as="pill">
-                            <t t-if="pill.completion_date &amp;&amp; pill.completion_date !== false || pill.check_completion_date &amp;&amp; pill.check_completion_date !== true">
+                            <t t-if="pill.check_c_date == true &amp;&amp; pill.check_ahead_schedule == false">
                                 <i title="Finished" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
                             </t>
-                            <t t-else="pill.task_delay || pill.check_completion_date || pill.date_end || pill.milestone || pill.on_hold || pill.check_l_end_date || pill.l_end_date || pill.check_c_date">
-<!--                                 <i title="Delay" t-if="pill.task_delay &amp;&amp; pill.task_delay !== 0" class="fa fa-clock-o" style="color: #F0E130;"/> -->
-                                <i title="Delay" t-if="pill.task_delay &amp;&amp; pill.task_delay !== 0" class="fa fa-clock-o" style="color: #F0E130;"/>
-                                <i title="Ahead Of Schedule" t-if="pill.check_completion_date &amp;&amp; pill.check_completion_date !== true" class="fa fa-star" style="color: #0000FF;"/>
-                                <i title="Early Date" t-if="pill.check_completion_date &amp;&amp; pill.check_completion_date == false || pill.check_c_date &amp;&amp; pill.check_c_date == true || pill.date_end == false" class="fa fa-trophy" style="color: #61B329"/>
-                                <i title="Milestone" t-if="pill.milestone &amp;&amp; pill.milestone == true || pill.check_c_date &amp;&amp; pill.check_c_date == true" class="fa fa-flag" style="color: #AAFF00;"/>
+                            <t t-else="pill.completion_date || pill.check_ahead_schedule || pill.task_delay || pill.check_completion_date || pill.date_end || pill.milestone || pill.on_hold || pill.check_l_end_date || pill.l_end_date">
+                                <i title="Delay" t-if="pill.check_delay == true" class="fa fa-clock-o" style="color: #F0E130;"/>
+                                <i title="Ahead Of Schedule" t-if="pill.check_c_date == true &amp;&amp; pill.check_ahead_schedule == true" class="fa fa-star" style="color: #0000FF;"/>
+                                <i title="Milestone" t-if="pill.check_milestone == true" class="fa fa-flag" style="color: #AAFF00;"/>
                                 <i title="On Hold"
-                                t-if="pill.on_hold &amp;&amp; pill.on_hold !== 0 || pill.check_c_date &amp;&amp; pill.check_c_date == true" class="fa fa-hourglass-half" style="color: #000000;"/>
-                                <i title="Overdue" t-if="pill.check_l_end_date &amp;&amp; pill.check_l_end_date == false || pill.l_end_date &amp;&amp; pill.l_end_date == false || pill.check_c_date &amp;&amp; pill.check_c_date == true" class="fa fa-exclamation" style="color: #FF0000"/>
+                                t-if="pill.check_hold == true" class="fa fa-hourglass-half" style="color: #000000;"/>
+                                <i title="Overdue" t-if="pill.check_overdue == true" class="fa fa-exclamation" style="color: #FF0000"/>
                                 <t t-if="!widget.isGroup"><br/></t>
                             </t>
                         </t>

@@ -13,8 +13,6 @@
     "category": "Custom Development",
     "version": "1.0",
     'depends': [
-        # 'base',
-        # 'project',
         'hr',
         'project_enterprise',
         'web_gantt',
