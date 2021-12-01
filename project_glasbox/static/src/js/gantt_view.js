@@ -52,13 +52,13 @@ var CustomGanttRow = GanttRow.extend({
         // }
 
         for(const pill in pills){
-            if (pills && pills[pill].delay  > 0 || pills[pill].duration > 0 || pills[pill].buffer_time > 0 || pills[pill].on_hold > 0) {
+            if (pills && pills[pill].task_delay  > 0 || pills[pill].planned_duration > 0 || pills[pill].buffer_time > 0 || pills[pill].on_hold > 0) {
                 const delay = pills[pill].task_delay
                 const duration = pills[pill].planned_duration
                 const buffer = pills[pill].buffer_time
                 const hold = pills[pill].on_hold
                 const wd = parseInt(100/(delay+duration+buffer+hold))
-                pills.l_end_date = wd + 1
+/*                pills.l_end_date = wd + 1*/
                 pills.delayWidth = delay * wd
                 pills.durationWidth = duration * wd
                 pills.bufferWidth = buffer * wd
