@@ -46,7 +46,6 @@
                 <div t-att-data-id="pill.id"
                      t-attf-class="o_gantt_pill o_gantt_consolidated_pill"
                      t-att-style="'width:' + pill.colors + '%;' + 'height:' + pill.totalHeight + '%;'"/>
-<!--                 <span class="o_gantt_consolidated_pill_title position-absolute text-truncate px-1" t-esc="pill.display_name"/> -->
             </div>
             <div t-elif="pill.consolidated"
                  t-attf-class="o_gantt_pill_wrapper position-absolute text-center o_gantt_consolidated_wrapper #{widget.options.isGroup ? 'o_gantt_pill_wrapper_group' : ''}"
@@ -79,11 +78,6 @@
                     t-attf-class="o_gantt_pill position-relative"
                     t-attf-style="width: #{delay + '%'}; background-color: #{delay > 0 ? 'yellow' : '#71959e'}; #{widget.options.isGroup ? pill.style : ''}"
                     />
-<!--                 <div
-                    t-att-data-id="pill.id"
-                    t-attf-class="o_gantt_pill position-relative"
-                    t-attf-style="width: #{diff + '%'}; background-color: #{delay > 0 ? 'red' : 'red'}; #{widget.options.isGroup ? pill.style : ''}"
-                    /> -->
             </div>
         </xpath>
         <xpath expr="//div[@t-if='!widget.options.hideSidebar']" position="after">
@@ -91,16 +85,14 @@
                 <div t-if="!widget.options.hideSidebar" t-attf-class="col-1 o_gantt_row_sidebar flex-grow-1 flex-shrink-0 position-relative #{!widget.name ? 'o_gantt_row_sidebar_empty' : '' }" t-attf-style="white-space: nowrap;">
                     <div class="text-center">
                         <t t-foreach="widget.pills" t-as="pill">
-                            <t t-if="pill.check_c_date == true &amp;&amp; pill.check_ahead_schedule == false">
-                                <i title="Finished" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
-                            </t>
-                            <t t-else="pill.completion_date || pill.check_ahead_schedule || pill.task_delay || pill.check_completion_date || pill.date_end || pill.milestone || pill.on_hold || pill.check_l_end_date || pill.l_end_date">
-                                <i title="Delay" t-if="pill.check_delay == true" class="fa fa-clock-o" style="color: #F0E130;"/>
-                                <i title="Ahead Of Schedule" t-if="pill.check_c_date == true &amp;&amp; pill.check_ahead_schedule == true" class="fa fa-star" style="color: #0000FF;"/>
-                                <i title="Milestone" t-if="pill.check_milestone == true" class="fa fa-flag" style="color: #AAFF00;"/>
+                            <t t-if="pill.check_c_date || pill.check_ahead_schedule || pill.check_delay || pill.check_milestone || pill.check_hold || pill.check_overdue">
+                                <i title="Finished" t-if="pill.check_c_date == true" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
+                                <i title="Ahead Of Schedule" t-if="pill.check_ahead_schedule == true" class="fa fa-star" style="color: #0000FF; margin: 0 7px;"/>
+                                <i title="Delay" t-if="pill.check_delay == true" class="fa fa-clock-o" style="color: #F0E130; margin: 0 7px;"/>
+                                <i title="Milestone" t-if="pill.check_milestone == true" class="fa fa-flag" style="color: #AAFF00; margin: 0 7px;"/>
                                 <i title="On Hold"
-                                t-if="pill.check_hold == true" class="fa fa-hourglass-half" style="color: #000000;"/>
-                                <i title="Overdue" t-if="pill.check_overdue == true" class="fa fa-exclamation" style="color: #FF0000"/>
+                                t-if="pill.check_hold == true" class="fa fa-hourglass-half" style="color: #000000; margin: 0 7px;"/>
+                                <i title="Overdue" t-if="pill.check_overdue == true" class="fa fa-exclamation" style="color: #FF0000; margin: 0 7px;"/>
                                 <t t-if="!widget.isGroup"><br/></t>
                             </t>
                         </t>
