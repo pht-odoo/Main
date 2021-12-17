@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
     <record id="project_enterprise.project_task_view_gantt" model="ir.ui.view">
@@ -27,8 +28,6 @@
         <field name="inherit_id" ref="project.view_task_kanban"/>
         <field name="arch" type="xml">
             <xpath expr="//div[hasclass('o_kanban_record_bottom')]/div[hasclass('oe_kanban_bottom_left')]" position="inside">
-                <field name="check_completion_date" invisible="1"/>
-                <field name="check_l_end_date" invisible="1"/>
                 <field name='completion_date' invisible='1'/>
                 <field name='l_end_date' invisible='1'/>
                 <field name='milestone' invisible='1'/>
@@ -42,12 +41,12 @@
                 <field name='check_hold' invisible='1'/>
                 <field name='check_overdue' invisible='1'/>
                 <div class="o_kanban_inline_block d-flex flex-row">
-                    <i title="Ahead Of Schedule" attrs="{'invisible':[('check_completion_date', '=', False)]}" class="fa fa-star" style="color: #0000FF;"/>
-                    <i title="Finished" attrs="{'invisible':['|', ('completion_date', '=', False), ('check_completion_date', '=', True)]}" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
-                    <i title="Delay" attrs="{'invisible':[('check_delay', '=', False)]}" class="fa fa-clock-o" style="color: #F0E130;"/>
-                    <i title="Milestone" attrs="{'invisible':['|', ('milestone', '!=', True), ('check_completion_date', '=', True)]}" class="fa fa-flag" style="color: #AAFF00;"/>
-                    <i title="On Hold" attrs="{'invisible':['|', ('on_hold', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-hourglass-half" style="color: #000000;"/>
-                    <i title="Overdue" attrs="{'invisible':['|', ('check_l_end_date','=',False), ('check_c_date', '=', True)]}" class="fa fa-exclamation" style="color: #FF0000"/>
+                    <i title="Finished" attrs="{'invisible':[('completion_date', '=', False)]}" class="fa fa-check-square-o" style="color: #2AAA8A;"/><t/>
+                    <i title="Ahead Of Schedule" attrs="{'invisible':[('check_ahead_schedule', '=', False)]}" class="fa fa-star" style="color: #0000FF; margin: 0 7px;"/><t/>
+                    <i title="Delay" attrs="{'invisible':[('check_delay', '=', False)]}" class="fa fa-clock-o" style="color: #F0E130; margin: 0 7px;"/><t/>
+                    <i title="Milestone" attrs="{'invisible':[('milestone', '!=', True)]}" class="fa fa-flag" style="color: #AAFF00; margin: 0 7px;"/><t/>
+                    <i title="On Hold" attrs="{'invisible':[('on_hold', '=', 0)]}" class="fa fa-hourglass-half" style="color: #000000; margin: 0 7px;"/><t/>
+                    <i title="Overdue" attrs="{'invisible':[('check_overdue', '=', False)]}" class="fa fa-exclamation" style="color: #FF0000; margin: 0 7px;"/>
                 </div>
             </xpath>
         </field>
@@ -59,8 +58,6 @@
         <field name="inherit_id" ref="project.view_task_tree2"/>
         <field name="arch" type="xml">
             <xpath expr="field[@name='activity_ids']" position="after">
-                <field name="check_completion_date" invisible="1"/>
-                <field name="check_l_end_date" invisible="1"/>
                 <field name='completion_date' invisible='1'/>
                 <field name='l_end_date' invisible='1'/>
                 <field name='milestone' invisible='1'/>
@@ -73,12 +70,12 @@
                 <field name='check_milestone' invisible='1'/>
                 <field name='check_hold' invisible='1'/>
                 <field name='check_overdue' invisible='1'/>
-                <button title="Ahead Of Schedule" class='btn-schedule' attrs="{'invisible':[('check_completion_date', '=', False)]}" icon="fa-star"/>
-                <button title="Finished" class='btn-finished' attrs="{'invisible':['|', ('completion_date', '=', False), ('check_completion_date', '=', True)]}" icon="fa-check-square-o"/>
+                <button title="Finished" class='btn-finished' attrs="{'invisible':[ ('completion_date', '=', False)]}" icon="fa-check-square-o"/>
+                <button title="Ahead Of Schedule" class='btn-schedule' attrs="{'invisible':[('check_ahead_schedule', '=', False)]}" icon="fa-star"/>
                 <button class="btn-delay" title="Delay" attrs="{'invisible':[('check_delay', '=', False)]}" icon="fa-clock-o"/>
-                <button class="btn-milestone" title="Milestone" attrs="{'invisible':['|', ('milestone', '!=', True), ('check_completion_date', '=', True)]}" icon="fa-flag"/>
-                <button class="btn-hold" title="On Hold" attrs="{'invisible':['|', ('on_hold', '=', 0), ('check_c_date', '=', True)]}" icon="fa-hourglass-half"/>
-                <button class="btn-overdue" title="Overdue" attrs="{'invisible':['|', ('check_l_end_date','=',False), ('check_c_date', '=', True)]}" icon="fa-exclamation"/>
+                <button class="btn-milestone" title="Milestone" attrs="{'invisible':[('milestone', '!=', True)]}" icon="fa-flag"/>
+                <button class="btn-hold" title="On Hold" attrs="{'invisible':[('on_hold', '=', 0)]}" icon="fa-hourglass-half"/>
+                <button class="btn-overdue" title="Overdue" attrs="{'invisible':[('check_overdue', '=', False)]}" icon="fa-exclamation"/>
             </xpath>
         </field>
     </record>
@@ -124,8 +121,6 @@
                 <field name="completion_date" context="{'c_date': True}"/>
             </xpath>
             <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
-                <field name="check_completion_date" invisible="1"/>
-                <field name="check_l_end_date" invisible="1"/>
                 <field name='task_delay' invisible="1"/>
                 <field name="date_end" invisible="1"/>
                 <field name="l_end_date" invisible="1"/>
@@ -138,13 +133,13 @@
                 <field name='check_milestone' invisible='1'/>
                 <field name='check_hold' invisible='1'/>
                 <field name='check_overdue' invisible='1'/>
-                <div class="oe_stat_button h1 d-flex flex-inline">
-                    <i title="Ahead Of Schedule" attrs="{'invisible':[('check_completion_date', '=', False)]}" class="fa fa-star" style="color: #0000FF;"/>
-                    <i title="Finished" attrs="{'invisible':['|', ('completion_date', '=', False), ('check_completion_date', '=', True)]}" class="fa fa-check-square-o" style="color: #2AAA8A;"/>
-                    <i title="Delay" attrs="{'invisible':[('check_delay', '=', False)]}" class="fa fa-clock-o" style="color: #F0E130;"/>
-                    <i title="Milestone" attrs="{'invisible':['|', ('milestone', '!=', True), ('check_completion_date', '=', True)]}" class="fa fa-flag" style="color: #AAFF00;"/>
-                    <i title="On Hold" attrs="{'invisible':['|', ('on_hold', '=', 0), ('check_c_date', '=', True)]}" class="fa fa-hourglass-half" style="color: #000000;"/>
-                    <i title="Overdue" attrs="{'invisible':['|', ('check_l_end_date','=',False), ('check_c_date', '=', True)]}" class="fa fa-exclamation" style="color: #FF0000"/>
+                <div class="oe_stat_button h1 text-left">
+                    <i title="Finished" attrs="{'invisible':[('completion_date', '=', False)]}" class="fa fa-check-square-o" style="color: #2AAA8A;"/><t/>
+                    <i title="Ahead Of Schedule" attrs="{'invisible':[('check_ahead_schedule', '=', False)]}" class="fa fa-star" style="color: #0000FF; margin: 0 7px;"/><t/>
+                    <i title="Delay" attrs="{'invisible':[('check_delay', '=', False)]}" class="fa fa-clock-o" style="color: #F0E130; margin: 0 7px;"/><t/>
+                    <i title="Milestone" attrs="{'invisible':[('milestone', '!=', True)]}" class="fa fa-flag" style="color: #AAFF00; margin: 0 7px;"/><t/>
+                    <i title="On Hold" attrs="{'invisible':[('on_hold', '=', 0)]}" class="fa fa-hourglass-half" style="color: #000000; margin: 0 7px;"/><t/>
+                    <i title="Overdue" attrs="{'invisible':[('check_overdue', '=', False)]}" class="fa fa-exclamation" style="color: #FF0000; margin: 0 7px;"/>
                 </div>
             </xpath>
         </field>

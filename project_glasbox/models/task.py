@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 from datetime import timedelta, datetime, date
 from odoo.exceptions import ValidationError, UserError
 from odoo import models, fields, api, _
@@ -24,22 +24,20 @@ class TaskDependency(models.Model):
     on_hold = fields.Integer("On Hold")
     dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id')
     links_serialized_json = fields.Char('Serialized Links JSON', compute="compute_links_json")
-    date_start = fields.Date('Starting Date', compute='_compute_start_date', store=True)
-    date_end = fields.Date('Ending Date', readonly=True, compute='_compute_end_date', store=True)
-    completion_date = fields.Date('Completion Date')
+    date_start = fields.Datetime('Starting Date', compute='_compute_start_date', store=True)
+    date_end = fields.Datetime('Ending Date', readonly=True, compute='_compute_end_date', store=True)
+    completion_date = fields.Datetime('Completion Date')
     milestone = fields.Boolean(string='Mark as Milestone', default=False)
     first_task = fields.Boolean(string='First Task', default=False)
-    l_start_date = fields.Date('Latest Start Date',compute='_compute_l_start_end_date', store=True)
-    l_end_date = fields.Date('Latest End Date', compute='_compute_l_start_end_date', store=True)
+    l_start_date = fields.Datetime('Latest Start Date',compute='_compute_l_start_end_date', store=True)
+    l_end_date = fields.Datetime('Latest End Date', compute='_compute_l_start_end_date', store=True)
     duration_mode = fields.Char(readonly=True)
     delay_due_to = fields.Char("Delay Due To")
     check_delay = fields.Boolean("Check Delay", compute="_compute_check_delay")
-    check_completion_date = fields.Boolean('Check Completion Date', compute="_compute_check_com_date", default=False)
-    check_l_end_date = fields.Boolean('Check Latest End Date', compute="_compute_check_l_end_date", default=False)
     check_c_date = fields.Boolean('Check Whether the Completion Date is set or not', compute="_compute_c_date", store=True)
     check_overdue = fields.Boolean('Check OverDue', compute="_check_completion_date")
     check_milestone = fields.Boolean("Check Milestone", compute="_compute_milestone")
-    check_ahead_schedule = fields.Boolean("Check Ahead Of Schedule", compute="_check_completion_date")
+    check_ahead_schedule = fields.Boolean("Check Ahead Of Schedule", compute="_compute_ahead")
     check_hold = fields.Boolean("Check On Hold", compute="_check_hold")
     scheduling_mode = fields.Selection([
         ("0", "Must Start On"),
@@ -53,7 +51,6 @@ class TaskDependency(models.Model):
         for r in self:
             resource_calendar = r.get_calendar()
             day_of_week = resource_calendar.attendance_ids.dayofweek
-
 
     def get_global_ids(self):
         return self.get_calendar().global_leave_ids
@@ -88,7 +85,7 @@ class TaskDependency(models.Model):
                 for days  in l_days:
                     lst_days.append(days)
             return lst_days
-    
+
     def get_holidays_between_dates(self, start_date, end_date):
         '''
             Method for getting holiday's between two dates according to comapny's calendar.
@@ -118,7 +115,7 @@ class TaskDependency(models.Model):
             resource_calendar = r.get_calendar()
             day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
             holidays = r.get_holidays(start_date)
-            if r.milestone == True and r.l_start_date:
+            if r.milestone and r.l_start_date:
                 duration = r.planned_duration
             else:
                 duration = r.planned_duration + r.on_hold + r.buffer_time
@@ -199,15 +196,15 @@ class TaskDependency(models.Model):
         # OVERRIDE to write method
         '''
             If the A1 completion date is set but the A2 completion date is not set,
-            Until A2's completion date is set, A3 starting date will get updated according to 
+            Until A2's completion date is set, A3 starting date will get updated according to
             A2's completion date (because A2 is the latest completion date then A1)
         '''
         res = super().write(vals)
         for r in self:
             task_count = r.count_tasks()
             # r._dependent_l_start_end_date()
-            if 'completion_date' in vals:
-                date_start = datetime.strptime(vals['completion_date'],"%Y-%m-%d") + timedelta(days=1)
+            if 'completion_date' in vals and vals['completion_date']:
+                date_start = datetime.strptime(vals['completion_date'],"%Y-%m-%d %H:%M:%S") + timedelta(days=1)
                 tasks = r.env['project.task'].search([('dependency_task_ids.task_id', 'in', r.ids)])
                 if task_count == 0:
                     tasks.write({
@@ -225,21 +222,22 @@ class TaskDependency(models.Model):
             Nobody can set yesterday's or next week’s date as the completion date.
         '''
         ctx = self.env.context
-        if ctx.get('c_date'):
-            self.completion_date = datetime.now()
-            holidays = self.get_holidays(self.completion_date)
-            resource_calendar = self.get_calendar()
-            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            if self.completion_date and str(self.completion_date.weekday()) not in day_of_week:
-                raise UserError(_('You can not set Completion Date Which is not in your Working days! Kindly Check your Company Calendar!'))
-            if self.completion_date and self.completion_date in holidays:
-                raise UserError(_('You can not set Completion Date Which is in Holidays! Kindly Check your Company Calendar!'))
+        for r in self:
+            if ctx.get('c_date') and r.completion_date:
+                r.completion_date = datetime.now()
+                holidays = r.get_holidays(r.completion_date)
+                resource_calendar = r.get_calendar()
+                day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+                if r.completion_date and str(r.completion_date.weekday()) not in day_of_week:
+                    raise UserError(_('You can not set Completion Date Which is not in your Working days! Kindly Check your Company Calendar!'))
+                if r.completion_date and r.completion_date in holidays:
+                    raise UserError(_('You can not set Completion Date Which is in Holidays! Kindly Check your Company Calendar!'))
 
     @api.onchange('dependency_task_ids')
     def onchange_changes(self):
         for r in self:
             task_count = r.count_tasks()
-            if r.milestone == True and r.dependency_task_ids:
+            if r.milestone and r.dependency_task_ids:
                 # list of all the 'l_start_date' of the each dependent task
                 l_start_date_lst = r.dependency_task_ids.task_id.mapped('l_start_date')
                 # list of all the 'l_end_date' of the each dependent task
@@ -259,89 +257,57 @@ class TaskDependency(models.Model):
                     if task_count == 0:
                         task.task_id.l_start_date =  False
                         task.task_id.l_end_date = False
-                    elif task.task_id.milestone == False and task.task_id.l_start_date == False and task.task_id.l_end_date == False:
+                    elif not task.task_id.milestone and not task.task_id.l_start_date and not task.task_id.l_end_date:
                         task.task_id.l_start_date = r.date_in_holiday(l_start_cal)
                         task.task_id.l_end_date = r.date_in_holiday(l_end_cal)
 
     @api.depends('completion_date')
     def _compute_c_date(self):
         for task in self:
-            if task.completion_date == False:
-                task.check_c_date = False 
+            if not task.completion_date:
+                task.check_c_date = False
             else:
                 task.check_c_date = True
 
     @api.depends('task_delay', 'check_c_date')
     def _compute_check_delay(self):
         for task in self:
-            if task.task_delay > 0 and task.check_c_date == False:
+            if task.task_delay > 0:
                 task.check_delay = True
             else:
                 task.check_delay = False
 
-    @api.depends('completion_date', 'date_end', 'l_end_date')
+    @api.depends('completion_date', 'l_end_date')
     def _check_completion_date(self):
         for task in self:
             if task.completion_date and task.l_end_date and task.completion_date > task.l_end_date:
                 task.check_overdue = True
-                task.check_ahead_schedule = False
-            elif task.completion_date and task.date_end and task.completion_date < task.date_end:
-                task.check_ahead_schedule = True
-                task.check_overdue = False
             else:
-                task.check_ahead_schedule = False
                 task.check_overdue = False
 
     @api.depends('on_hold','check_c_date')
     def _check_hold(self):
         for task in self:
-            if task.on_hold > 0 and task.check_c_date == False:
+            if task.on_hold > 0:
                 task.check_hold = True
             else:
                 task.check_hold = False
 
-    @api.depends('milestone','check_c_date')
+    @api.depends('milestone')
     def _compute_milestone(self):
         for task in self:
-            if task.milestone == True and task.check_c_date == False:
+            if task.milestone:
                 task.check_milestone = True
             else:
                 task.check_milestone = False
 
-    @api.depends('check_completion_date', 'check_c_date')
+    @api.depends('completion_date', 'date_end')
     def _compute_ahead(self):
         for task in self:
-            if task.check_completion_date == True and task.check_c_date == False:
+            if task.completion_date and task.date_end and task.completion_date < task.date_end:
                 task.check_ahead_schedule = True
             else:
                 task.check_ahead_schedule = False
-
-    @api.depends('completion_date','date_end')
-    def _compute_check_com_date(self):
-        for task in self:
-            if task.completion_date == False or task.date_end == False:
-                task.check_completion_date = False
-            elif task.completion_date and task.date_end:
-                if task.completion_date <= task.date_end:
-                    task.check_completion_date = True
-                else:
-                    task.check_completion_date = False
-
-    @api.depends('completion_date', 'l_end_date')
-    def _compute_check_l_end_date(self):
-        for task in self:
-            if task.completion_date == False or task.l_end_date == False:
-                task.check_l_end_date = False
-            else:
-                task.check_l_end_date = task.completion_date >= task.l_end_date
-
-    @api.depends('check_l_end_date', 'check_completion_date', 'l_end_date')
-    def _compute_overdue(self):
-        for task in self:
-            if task.check_l_end_date == False or task.check_completion_date == True or task.l_end_date == False:
-                task.check_overdue = False
-            else:
-                task.check_overdue = True
 
     @api.depends('completion_date','date_end')
     def _compute_delay(self):
@@ -356,6 +322,8 @@ class TaskDependency(models.Model):
                 # start_date = r.completion_date 
                 # end_date = r.date_end
                 r.task_delay = r.get_holidays_between_dates(r.completion_date, r.date_end)
+            if not r.completion_date:
+                r.task_delay = 0
 
     @api.depends('dependency_task_ids.task_id.completion_date')
     def _compute_accumulated_delay(self):
@@ -377,10 +345,10 @@ class TaskDependency(models.Model):
                     r.accumulated_delay = 0
                 else:
                     '''
-                        If current task is not 'first_task' and it has dependent tasks and 'taks_count' is 1 and the dependent task is 'first_task' 
+                        If current task is not 'first_task' and it has dependent tasks and 'taks_count' is 1 and the dependent task is 'first_task'
                         then set 'accumulated_delay' = dependent task's 'task_delay' + current task's task_delay
                     '''
-                    if task_count == 1 and r.dependency_task_ids.task_id['first_task'] == True:
+                    if task_count == 1 and r.dependency_task_ids.task_id['first_task']:
                         r.accumulated_delay = r.dependency_task_ids.task_id['task_delay'] + r.task_delay
                     elif task_count > 1 and False not in completion_date_lst and all(r.dependency_task_ids.task_id.mapped('first_task')):
                         delay_lst = r.dependency_task_ids.task_id.mapped('task_delay')
@@ -400,7 +368,7 @@ class TaskDependency(models.Model):
                 elif r.date_start:
                     r.date_start = r.date_start # if task has no dependent tasks then it will use current task's date_start
             else:
-                if r.first_task != True and r.dependency_task_ids:
+                if not r.first_task and r.dependency_task_ids:
                     '''
                         If task_count = 1 and it has only one dependent task and that dependent task has 'completion_date' is set 
                         then current task's 'date_start' = previous task's completion_date + 1.
@@ -410,20 +378,21 @@ class TaskDependency(models.Model):
                     end_date_lst = r.dependency_task_ids.task_id.mapped('date_end')
                     first_element = completion_date_lst[0]
                     if task_count == 1 and len(completion_date_lst) == 1 and completion_date_lst[0] != False:
-                            start_date = r.date_in_holiday(r.dependency_task_ids.task_id.date_end)
-                            r.date_start = r.date_in_holiday(start_date + timedelta(days=1))
+                            r.date_start = r.date_in_holiday(r.dependency_task_ids.task_id.completion_date)
                     elif False in completion_date_lst:
                         '''
                             If we have only one value in 'completion_date_lst' and the value is False
                             then current task's 'date_start' is previous task's 'end_date' + 1
                         '''
-                        if len(completion_date_lst) >= 1 and ([completion_date_lst[i] == False for i in completion_date_lst]):
+                        if len(completion_date_lst) == 1 and not completion_date_lst[0]:
                             max_end_date = max(sorted(end_date_lst))
-                            # start_date = r.date_in_holiday(max_end_date)
+                            r.date_start = r.date_in_holiday(max_end_date)
+                        elif len(completion_date_lst) > 1 and all(([completion_date_lst[i] == False for i in range(len(completion_date_lst))])):
+                            max_end_date = max(sorted(end_date_lst))
                             r.date_start = r.date_in_holiday(max_end_date)
                         else:
                             '''
-                                If A1 completion date is set but A2 completion date is not set, 
+                                If A1 completion date is set but A2 completion date is not set,
                                 then use A1 completion date +1 business day as A3 starting date.
                             '''
                             for i in range(len(completion_date_lst)):
@@ -437,11 +406,10 @@ class TaskDependency(models.Model):
                                         elif previous_el:
                                             # if occurrences are > 1 then, we will take max date from completion_date list
                                             max_comp_date = max(sorted(completion_date_lst))
-                                            start_date = r.date_in_holiday(max_comp_date)
-                                            r.date_start = r.date_in_holiday(start_date + timedelta(days=1))
+                                            r.date_start = r.date_in_holiday(max_comp_date)
                                     else:
                                         start_date = r.date_in_holiday(previous_el)
-                                        r.date_start = r.date_in_holiday(start_date + timedelta(days=1))
+                                        r.date_start = r.date_in_holiday(start_date)
                     else:
                         for date_start in completion_date_lst:
                             if date_start != first_element and False not in completion_date_lst:
@@ -470,14 +438,14 @@ class TaskDependency(models.Model):
     def _compute_end_date(self):
         '''
             Method for to set 'date_end' dynamically (applied forward calculation) according to 'date_start', 'planned_duration', 'buffer_time' and 'on_hold'.
-            
+
             Here, the calculation of 'date_end' is as follows:-
             date_end = date_start + planned_duration + buffer_time + on_hold
         '''
         for r in self:
             sum_all = r.planned_duration + r.on_hold + r.buffer_time
             # start_date = r.date_start
-            if r.first_task == True or r.date_start:
+            if r.first_task or r.date_start:
                 r.date_end = r.get_forward_next_date(r.date_start)
 
     @api.depends('l_end_date','l_start_date','planned_duration','milestone','scheduling_mode')
@@ -493,11 +461,11 @@ class TaskDependency(models.Model):
             l_end_date = l_date_start + planned_duration
         '''
         for r in self:
-            if r.milestone == True and r.scheduling_mode == '1' and r.l_end_date:
+            if r.milestone and r.scheduling_mode == '1' and r.l_end_date:
                 if r.planned_duration == 1:
                     r.l_start_date = r.date_back_holiday(r.l_end_date)
                 else:
                     l_start_date = r.get_backward_next_date(r.l_end_date)
                     r.l_start_date = r.date_back_holiday(l_start_date)
-            elif r.milestone == True and r.scheduling_mode == '0' and r.l_start_date:
+            elif r.milestone and r.scheduling_mode == '0' and r.l_start_date:
                 r.l_end_date = r.get_forward_next_date(r.l_start_date)
