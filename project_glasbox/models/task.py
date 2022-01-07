@@ -77,9 +77,9 @@ class TaskDependency(models.Model):
         '''
         for r in self:
             if r.l_end_date or r.completion_date:
-                leaves = r.get_global_ids().filtered(lambda d: start_date and d.date_from.date() < start_date)
+                leaves = r.get_global_ids().filtered(lambda d: start_date and d.date_from.date() < start_date.date())
             else:
-                leaves = r.get_global_ids().filtered(lambda d: start_date and d.date_from.date() > start_date)
+                leaves = r.get_global_ids().filtered(lambda d: start_date and d.date_from.date() > start_date.date())
             lst_days = []
             for leave in leaves:
                 l_days = [leave.date_from.date()+timedelta(days=x) for x in range((leave.date_to.date()-leave.date_from.date()+timedelta(days=1)).days)]
@@ -97,13 +97,13 @@ class TaskDependency(models.Model):
             daydiff = start_date.weekday() - end_date.weekday()
             working_days = ((start_date-end_date).days - daydiff) / 7 * work_days + min(daydiff,work_days) - (max(start_date.weekday() - 4, 0) % work_days)
 
-            leaves = r.get_global_ids().filtered(lambda d: d.date_from.date() > start_date)
+            leaves = r.get_global_ids().filtered(lambda d: d.date_from.date() > start_date.date())
             lst_days = []
             for leave in leaves:
                 l_days = [leave.date_from.date()+timedelta(days=x) for x in range((leave.date_to.date()-leave.date_from.date()+timedelta(days=1)).days)]
                 # lst_days.append(days for days in l_days if start_date <= days <= end_date)
                 for days  in l_days:
-                    if  start_date <= days <= end_date:
+                    if  start_date.date() <= days <= end_date.date():
                         lst_days.append(days)
             return (working_days - len(lst_days) if working_days > 0 else len(lst_days) + working_days)
 
@@ -375,7 +375,7 @@ class TaskDependency(models.Model):
                     r.date_start = False
                     r.date_end = False
                 elif r.date_start:
-                    r.date_start = r.date_start # if task has no dependent tasks then it will use current task's date_start
+                    r.date_start = r.date_in_holiday(r.date_start) # if task has no dependent tasks then it will use current task's date_start
             else:
                 if not r.first_task and r.dependency_task_ids:
                     '''
@@ -471,10 +471,6 @@ class TaskDependency(models.Model):
         '''
         for r in self:
             if r.milestone and r.scheduling_mode == '1' and r.l_end_date:
-                if r.planned_duration == 1:
-                    r.l_start_date = r.date_back_holiday(r.l_end_date)
-                else:
-                    l_start_date = r.get_backward_next_date(r.l_end_date)
-                    r.l_start_date = r.date_back_holiday(l_start_date)
+                r.l_start_date = r.get_backward_next_date(r.l_end_date)
             elif r.milestone and r.scheduling_mode == '0' and r.l_start_date:
                 r.l_end_date = r.get_forward_next_date(r.l_start_date)
