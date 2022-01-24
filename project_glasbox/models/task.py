@@ -117,10 +117,28 @@ class TaskDependency(models.Model):
             resource_calendar = record.get_calendar()
             day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
             holidays = record.get_holidays(next_date)
-            if record.milestone and record.l_start_date:
-                duration = record.planned_duration
-            else:
-                duration = record.planned_duration + record.on_hold + record.buffer_time
+            duration = record.planned_duration + record.on_hold + record.buffer_time
+            if next_date:
+                next_date = next_date + timedelta(days=-1)
+                while duration > 0:
+                    next_date += timedelta(days=1)
+                    if str(next_date.weekday()) not in day_of_week:
+                        continue
+                    if next_date in holidays:
+                        continue
+                    duration -= 1
+                return next_date
+
+    def get_forward_l_end_date(self, next_date):
+        '''
+            Method for calculating the 'l_end_date' according to any 'l_start_date'
+        '''
+        for record in self:
+            duration = 0
+            resource_calendar = record.get_calendar()
+            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+            holidays = record.get_holidays(next_date)
+            duration = record.planned_duration
             if next_date:
                 next_date = next_date + timedelta(days=-1)
                 while duration > 0:
@@ -176,7 +194,7 @@ class TaskDependency(models.Model):
                 date += timedelta(days=1)
                 date = record.check_date_weekend(date)
 
-            for date in holidays:
+            if date in holidays:
                 date += timedelta(days=1)
                 date = record.check_date_weekend(date)
             return date
@@ -236,18 +254,17 @@ class TaskDependency(models.Model):
     @api.onchange('dependency_task_ids')
     def onchange_changes(self):
         for record in self:
+            resource_calendar = record.get_calendar()
+            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
             task_count = record.count_tasks()
             if record.milestone and record.dependency_task_ids:
-                # list of all the 'l_start_date' of the each dependent task
-                l_start_date_lst = record.dependency_task_ids.task_id.mapped('l_start_date')
-                # list of all the 'l_end_date' of the each dependent task
-                l_end_date_lst = record.dependency_task_ids.task_id.mapped('l_end_date')
+                holidays_l_start_date = record.get_holidays(record.l_start_date)
+                holidays_l_end_date = record.get_holidays(record.l_end_date)
                 '''
                     For none milestone task, 'l_start_date' will be calculated when the milestone tasks’ Latest start/end date got inserted. 
                     Use the current task calculated Latest end date -  current task Duration (but not buffer time) - current task On hold (if any). 
                     Read-only field for non-milestone tasks.
                 '''
-                l_start_cal = record.l_end_date - timedelta(record.planned_duration) - timedelta(record.on_hold)
                 '''
                     For none milestone task, 'l_end_date' is calculate with the next tasks’ latest start date minus one business day. 
                     This will be the read-only field.
@@ -258,8 +275,17 @@ class TaskDependency(models.Model):
                         task.task_id.l_start_date =  False
                         task.task_id.l_end_date = False
                     elif not task.task_id.milestone and not task.task_id.l_start_date and not task.task_id.l_end_date:
-                        task.task_id.l_start_date = record.date_in_holiday(l_start_cal)
-                        task.task_id.l_end_date = record.date_in_holiday(l_end_cal)
+                        while str(l_end_cal.weekday()) not in day_of_week:
+                            l_end_cal -= timedelta(days=1)
+                        while l_end_cal in holidays_l_end_date:
+                            l_end_cal -= timedelta(days=1)
+                        task.task_id.l_end_date = l_end_cal
+                        l_start_cal = task.task_id.l_end_date - timedelta(task.task_id.planned_duration) - timedelta(task.task_id.on_hold) + timedelta(days=1)
+                        while str(l_start_cal.weekday()) not in day_of_week:
+                            l_start_cal -= timedelta(days=1)
+                        while l_start_cal in holidays_l_start_date:
+                            l_start_cal -= timedelta(days=1)
+                        task.task_id.l_start_date = l_start_cal
 
     @api.depends('completion_date', 'date_end')
     def _compute_end_comp(self):
@@ -398,10 +424,10 @@ class TaskDependency(models.Model):
                             then current task's 'date_start' is previous task's 'end_date' + 1
                         '''
                         if len(completion_date_lst) == 1 and not completion_date_lst[0]:
-                            record.date_start = record.get_forward_next_date(end_date_lst[0] + timedelta(days=1))
+                            record.date_start = record.date_in_holiday(end_date_lst[0])
                         elif len(completion_date_lst) > 1 and all(([completion_date_lst[i] == False for i in range(len(completion_date_lst))])):
                             max_end_date = max(sorted(end_date_lst))
-                            record.date_start = record.get_forward_next_date(max_end_date + timedelta(days=1))
+                            record.date_start = record.date_in_holiday(max_end_date)
                         else:
                             '''
                                 If A1 completion date is set but A2 completion date is not set,
@@ -484,4 +510,4 @@ class TaskDependency(models.Model):
             if record.milestone and record.scheduling_mode == '1' and record.l_end_date:
                 record.l_start_date = record.get_backward_next_date(record.l_end_date)
             elif record.milestone and record.scheduling_mode == '0' and record.l_start_date:
-                record.l_end_date = record.get_forward_next_date(record.l_start_date)
+                record.l_end_date = record.get_forward_l_end_date(record.l_start_date)
