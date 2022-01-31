@@ -9,42 +9,40 @@ class DependingTasks(models.Model):
     _name = "project.depending.tasks"
     _description = "Tasks Dependency (m2m)"
 
-    task_id = fields.Many2one('project.task', required=True)
-    project_id = fields.Many2one('project.project', string='Project')
-    depending_task_id = fields.Many2one('project.task', required=True)
-    relation_type = fields.Char('Relation', default="Finish To Start")
-    state = fields.Selection([('draft', 'Draft'), ('confirm', 'Confirm'), ('done', 'Done')], default='draft')
+    task_id = fields.Many2one('project.task', required=True, copy=True)
+    project_id = fields.Many2one('project.project', string='Project', copy=True)
+    depending_task_id = fields.Many2one('project.task', required=True, copy=True)
+    relation_type = fields.Char('Relation', default="Finish To Start", copy=True)
 
 class TaskDependency(models.Model):
     _inherit = "project.task"
 
-    planned_duration = fields.Integer('Duration', default=1)
-    buffer_time = fields.Integer(string='Buffer Time')
-    task_delay = fields.Integer(string='Task Delay', compute='_compute_delay', store=True)
-    accumulated_delay = fields.Integer(string='Accumulated Delay', compute='_compute_accumulated_delay', store=True)
-    on_hold = fields.Integer(string="On Hold")
-    dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id')
-    links_serialized_json = fields.Char('Serialized Links JSON', compute="compute_links_json")
-    date_start = fields.Datetime(string='Starting Date', compute='_compute_start_date', store=True)
-    date_end = fields.Datetime(string='Ending Date', readonly=True, compute='_compute_end_date', store=True)
-    completion_date = fields.Datetime(string='Completion Date')
-    check_end_or_comp_date = fields.Datetime(string='Checking End or Completion Date', compute='_compute_end_comp', store=True)
-    milestone = fields.Boolean(string='Mark as Milestone', default=False)
-    first_task = fields.Boolean(string='First Task', default=False)
-    l_start_date = fields.Datetime(string='Latest Start Date',compute='_compute_l_start_end_date', store=True)
-    l_end_date = fields.Datetime(string='Latest End Date', compute='_compute_l_start_end_date', store=True)
-    duration_mode = fields.Char(readonly=True)
-    delay_due_to = fields.Char(string="Delay Due To")
-    check_delay = fields.Boolean(string="Check Delay", compute="_compute_check_delay")
-    check_c_date = fields.Boolean(string='Check Whether the Completion Date is set or not', compute="_compute_c_date", store=True)
-    check_overdue = fields.Boolean(string='Check OverDue', compute="_check_completion_date")
-    check_milestone = fields.Boolean(string="Check Milestone", compute="_compute_milestone")
-    check_ahead_schedule = fields.Boolean(string="Check Ahead Of Schedule", compute="_compute_ahead")
-    check_hold = fields.Boolean(string="Check On Hold", compute="_check_hold")
+    planned_duration = fields.Integer('Duration', default=1, copy=True)
+    buffer_time = fields.Integer(string='Buffer Time', copy=True)
+    task_delay = fields.Integer(string='Task Delay', compute='_compute_delay', store=True, copy=True)
+    accumulated_delay = fields.Integer(string='Accumulated Delay', compute='_compute_accumulated_delay', store=True, copy=True)
+    on_hold = fields.Integer(string="On Hold", copy=True)
+    dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id', copy=True)
+    date_start = fields.Datetime(string='Starting Date', compute='_compute_start_date', store=True, copy=True)
+    date_end = fields.Datetime(string='Ending Date', readonly=True, compute='_compute_end_date', store=True, copy=True)
+    completion_date = fields.Datetime(string='Completion Date', copy=True)
+    check_end_or_comp_date = fields.Datetime(string='Checking End or Completion Date', compute='_compute_end_comp', store=True, copy=True)
+    milestone = fields.Boolean(string='Mark as Milestone', default=False, copy=True)
+    first_task = fields.Boolean(string='First Task', default=False, copy=True)
+    l_start_date = fields.Datetime(string='Latest Start Date',compute='_compute_l_start_end_date', store=True, copy=True)
+    l_end_date = fields.Datetime(string='Latest End Date', compute='_compute_l_start_end_date', store=True, copy=True)
+    duration_mode = fields.Char(readonly=True, copy=True)
+    delay_due_to = fields.Char(string="Delay Due To", copy=True)
+    check_delay = fields.Boolean(string="Check Delay", compute="_compute_check_delay", copy=True)
+    check_c_date = fields.Boolean(string='Check Whether the Completion Date is set or not', compute="_compute_c_date", store=True, copy=True)
+    check_overdue = fields.Boolean(string='Check OverDue', compute="_check_completion_date", copy=True)
+    check_milestone = fields.Boolean(string="Check Milestone", compute="_compute_milestone", copy=True)
+    check_ahead_schedule = fields.Boolean(string="Check Ahead Of Schedule", compute="_compute_ahead", copy=True)
+    check_hold = fields.Boolean(string="Check On Hold", compute="_check_hold", copy=True)
     scheduling_mode = fields.Selection([
         ("0", "Must Start On"),
         ("1", "Must Finish On"),
-    ], string="Scheduling Mode")
+    ], string="Scheduling Mode", copy=True)
 
     def get_calendar(self):
         return self.env.company.resource_calendar_id
@@ -251,7 +249,7 @@ class TaskDependency(models.Model):
                 if record.completion_date and record.completion_date in holidays:
                     raise UserError(_('You can not set Completion Date Which is in Holidays! Kindly Check your Company Calendar!'))
 
-    @api.onchange('dependency_task_ids')
+    @api.onchange('dependency_task_ids', 'milestone', 'l_start_date')
     def onchange_changes(self):
         for record in self:
             resource_calendar = record.get_calendar()
@@ -269,12 +267,12 @@ class TaskDependency(models.Model):
                     For none milestone task, 'l_end_date' is calculate with the next tasks’ latest start date minus one business day. 
                     This will be the read-only field.
                 '''
-                l_end_cal = record.l_start_date - timedelta(days=1)
+                l_end_cal = record.l_start_date - timedelta(days=1) if record.l_start_date else False
                 for task in record.dependency_task_ids:
                     if task_count == 0:
                         task.task_id.l_start_date =  False
                         task.task_id.l_end_date = False
-                    elif not task.task_id.milestone and not task.task_id.l_start_date and not task.task_id.l_end_date:
+                    elif not task.task_id.milestone and not task.task_id.l_start_date and not task.task_id.l_end_date and l_end_cal:
                         while str(l_end_cal.weekday()) not in day_of_week:
                             l_end_cal -= timedelta(days=1)
                         while l_end_cal in holidays_l_end_date:
@@ -460,7 +458,7 @@ class TaskDependency(models.Model):
                                 max_date_start = max(sorted(completion_date_lst))
                                 start_date = record.date_in_holiday(max_date_start)
                                 record.date_start = record.date_in_holiday(start_date + timedelta(days=1))
-                            elif date_start == False and False not in end_date_lst and len(completion_date_lst) == 0:
+                            elif not date_start and False not in end_date_lst and len(completion_date_lst) == 0:
                                 max_end_date = max(sorted(end_date_lst))
                                 start_date = record.date_in_holiday(max_end_date)
                                 record.date_start = record.date_in_holiday(start_date + timedelta(days=1))
@@ -482,8 +480,8 @@ class TaskDependency(models.Model):
         '''
         for record in self:
             sum_all = record.planned_duration + record.on_hold + record.buffer_time
-            # start_date = record.date_start
-            if record.first_task or record.date_start:
+            start_date = record.date_start
+            if record.first_task or start_date:
                 record.date_end = record.get_forward_next_date(record.date_start)
 
     @api.depends('l_end_date','l_start_date','planned_duration','milestone','scheduling_mode')
