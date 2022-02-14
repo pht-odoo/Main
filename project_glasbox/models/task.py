@@ -22,15 +22,13 @@ class Project(models.Model):
         new_tasks = project.mapped('task_ids')
         for task in new_tasks:
             old = old_tasks.filtered(lambda x:x.name == task.name)
-            # print("old task", old.name, old.dependency_task_ids.ids, [x.task_id.name for x in old.dependency_task_ids])
             dependent_task = []
-            dependent_task_name = []
-            for dt in old.dependency_task_ids:
-                dependent_task = new_tasks.filtered(lambda x:x.name == dt.task_id.name).id
-                dependent_task_name = [x.name for x in new_tasks.filtered(lambda x:x.name == dt.task_id.name)]
-        # below is the another logic for copy the dependency tasks
-        # dependency = self.env['project.depending.tasks'].search([('project_id','=',project.id)])
-        # dependency.mapped('task_id').write({'project_id': project.id})
+            # logic for setting current project on dependency_task's project_id
+            for d_task in old.dependency_task_ids:
+                dependent_task = new_tasks.filtered(lambda x:x.name == d_task.task_id.name).id
+                task.write({
+                    'dependency_task_ids': [(0, 0, {'task_id': dependent_task})]
+                })
         return project
 
 class DependingTasks(models.Model):
@@ -84,7 +82,7 @@ class TaskDependency(models.Model):
         return self.get_calendar().global_leave_ids
 
     def count_tasks(self):
-        return len(self.dependency_task_ids.task_id)
+        return len(self.dependency_task_ids.mapped('task_id'))
 
     def get_work_days(self):
         '''
@@ -420,14 +418,14 @@ class TaskDependency(models.Model):
                         delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
                         record.accumulated_delay = max(sorted(delay_lst)) + record.task_delay
 
-    @api.depends('dependency_task_ids.task_id.completion_date','dependency_task_ids.task_id.date_start','dependency_task_ids.task_id.stage_id')
+    @api.depends('dependency_task_ids.task_id.completion_date','dependency_task_ids.task_id.date_start')
     def _compute_start_date(self):
         for record in self:
             task_count = record.count_tasks()
             holidays = record.get_holidays(record.date_start)
             resource_calendar = record.get_calendar()
             day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            if task_count == 0:
+            if task_count > 5:
                 if record.dependency_task_ids:
                     record.date_start = False
                     record.date_end = False
@@ -443,18 +441,19 @@ class TaskDependency(models.Model):
                     '''
                     # list of all the 'completion_date' of the each dependent task
                     completion_date_lst = record.dependency_task_ids.mapped('task_id.completion_date')
+                    breakpoint()
                     end_date_lst = record.dependency_task_ids.mapped('task_id.date_end')
                     first_element = completion_date_lst[0]
                     if task_count == 1 and len(completion_date_lst) == 1 and completion_date_lst[0] != False:
-                            record.date_start = record.date_in_holiday(record.dependency_task_ids.task_id.completion_date)
+                        record.date_start = record.date_in_holiday(record.dependency_task_ids.task_id.completion_date)
                     elif False in completion_date_lst:
                         '''
                             If we have only one value in 'completion_date_lst' and the value is False
                             then current task's 'date_start' is previous task's 'end_date' + 1
                         '''
-                        if len(completion_date_lst) == 1 and not completion_date_lst[0]:
+                        if len(completion_date_lst) == 1 and not completion_date_lst[0] and end_date_lst:
                             record.date_start = record.date_in_holiday(end_date_lst[0])
-                        elif len(completion_date_lst) > 1 and all(([completion_date_lst[i] == False for i in range(len(completion_date_lst))])):
+                        elif len(completion_date_lst) > 1 and all(([completion_date_lst[i] == False for i in range(len(completion_date_lst))])) and end_date_lst:
                             max_end_date = max(sorted(end_date_lst))
                             record.date_start = record.date_in_holiday(max_end_date)
                         else:
@@ -540,4 +539,3 @@ class TaskDependency(models.Model):
                 record.l_start_date = record.get_backward_next_date(record.l_end_date)
             elif record.milestone and record.scheduling_mode == '0' and record.l_start_date:
                 record.l_end_date = record.get_forward_l_end_date(record.l_start_date)
-
