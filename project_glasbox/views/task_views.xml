@@ -104,7 +104,7 @@
                             <field name="scheduling_mode" widget="radio" attrs="{'invisible':[('milestone', '!=', True)]}"/>
                             <field name="l_start_date" attrs="{'readonly': ['|', ('milestone', '=', False), '&amp;', ('milestone', '=', True), ('scheduling_mode', '=', '1')]}"/>
                             <field name="l_end_date" attrs="{'readonly': ['|', ('milestone', '=', False), '&amp;', ('milestone', '=', True), ('scheduling_mode', '=', '0')]}"/>
-                            <field name="dependency_task_ids" string="Dependent Task" attrs="{'invisible':[('first_task', '!=', False)]}">
+                            <field name="dependency_task_ids" attrs="{'invisible':[('first_task', '!=', False)]}">
                                 <tree editable="bottom">
                                     <field name="project_id" invisible="1"/>
                                     <field name="task_id" domain="[('project_id','=',parent.project_id)]"/>

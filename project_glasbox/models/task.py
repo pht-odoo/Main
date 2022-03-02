@@ -48,7 +48,7 @@ class TaskDependency(models.Model):
     task_delay = fields.Integer(string='Task Delay', compute='_compute_delay', store=True, copy=True)
     accumulated_delay = fields.Integer(string='Accumulated Delay', compute='_compute_accumulated_delay', store=True, copy=True)
     on_hold = fields.Integer(string="On Hold", copy=True)
-    dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id', copy=False)
+    dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id', string="Dependent Task", copy=False)
     date_start = fields.Datetime(string='Starting Date', compute='_compute_start_date', store=True, copy=True)
     date_end = fields.Datetime(string='Ending Date', readonly=True, compute='_compute_end_date', store=True, copy=True)
     completion_date = fields.Datetime(string='Completion Date', copy=True)
@@ -418,7 +418,7 @@ class TaskDependency(models.Model):
                         delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
                         record.accumulated_delay = max(sorted(delay_lst)) + record.task_delay
 
-    @api.depends('dependency_task_ids.task_id.completion_date','dependency_task_ids.task_id.date_start')
+    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.date_start')
     def _compute_start_date(self):
         for record in self:
             task_count = record.count_tasks()
@@ -441,7 +441,6 @@ class TaskDependency(models.Model):
                     '''
                     # list of all the 'completion_date' of the each dependent task
                     completion_date_lst = record.dependency_task_ids.mapped('task_id.completion_date')
-                    breakpoint()
                     end_date_lst = record.dependency_task_ids.mapped('task_id.date_end')
                     first_element = completion_date_lst[0]
                     if task_count == 1 and len(completion_date_lst) == 1 and completion_date_lst[0] != False:
