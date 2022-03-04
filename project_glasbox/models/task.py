@@ -21,7 +21,7 @@ class Project(models.Model):
         #new tasks
         new_tasks = project.mapped('task_ids')
         for task in new_tasks:
-            old = old_tasks.filtered(lambda x:x.name == task.name)
+            old = old_tasks.filtered(lambda x: x.name == task.name)
             dependent_task = []
             # logic for setting current project on dependency_task's project_id
             for d_task in old.dependency_task_ids:
@@ -36,7 +36,7 @@ class DependingTasks(models.Model):
     _description = "Tasks Dependency (m2m)"
 
     task_id = fields.Many2one('project.task', required=True, copy=True)
-    project_id = fields.Many2one('project.project', string='Project')
+    project_id = fields.Many2one('project.project', string='Project', related='task_id.project_id')
     depending_task_id = fields.Many2one('project.task', required=True)
     relation_type = fields.Char('Relation', default="Finish To Start")
 
@@ -55,7 +55,7 @@ class TaskDependency(models.Model):
     check_end_or_comp_date = fields.Datetime(string='Checking End or Completion Date', compute='_compute_end_comp', store=True, copy=True)
     milestone = fields.Boolean(string='Mark as Milestone', default=False, copy=True)
     first_task = fields.Boolean(string='First Task', default=False, copy=True)
-    l_start_date = fields.Datetime(string='Latest Start Date',compute='_compute_l_start_end_date', store=True, copy=True)
+    l_start_date = fields.Datetime(string='Latest Start Date', compute='_compute_l_start_end_date', store=True, copy=True)
     l_end_date = fields.Datetime(string='Latest End Date', compute='_compute_l_start_end_date', store=True, copy=True)
     duration_mode = fields.Char(readonly=True, copy=True)
     delay_due_to = fields.Char(string="Delay Due To", copy=True)
@@ -132,16 +132,14 @@ class TaskDependency(models.Model):
                         lst_days.append(days)
             return (working_days - len(lst_days) if working_days > 0 else len(lst_days) + working_days)
 
-    def get_forward_next_date(self, next_date):
+    def get_forward_next_date(self, next_date, duration):
         '''
             Method for calculating the 'end_date' according to any 'start_date'
         '''
         for record in self:
-            duration = 0
             resource_calendar = record.get_calendar()
             day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
             holidays = record.get_holidays(next_date)
-            duration = record.planned_duration + record.on_hold + record.buffer_time
             if next_date:
                 next_date = next_date + timedelta(days=-1)
                 while duration > 0:
@@ -248,7 +246,7 @@ class TaskDependency(models.Model):
             task_count = record.count_tasks()
 
             if 'completion_date' in vals and vals['completion_date']:
-                date_start = datetime.strptime(vals['completion_date'],"%Y-%m-%d %H:%M:%S")
+                date_start = datetime.strptime(vals['completion_date'], "%Y-%m-%d %H:%M:%S")
                 tasks = record.env['project.task'].search([('dependency_task_ids.task_id', 'in', record.ids)])
                 if task_count == 0:
                     tasks.write({
@@ -418,102 +416,111 @@ class TaskDependency(models.Model):
                         delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
                         record.accumulated_delay = max(sorted(delay_lst)) + record.task_delay
 
-    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.date_start')
-    def _compute_start_date(self):
+    @api.constrains('date_start')
+    def _check_start_date(self):
         for record in self:
-            task_count = record.count_tasks()
             holidays = record.get_holidays(record.date_start)
             resource_calendar = record.get_calendar()
             day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            if task_count > 5:
-                if record.dependency_task_ids:
-                    record.date_start = False
-                    record.date_end = False
-                if record.date_start and str(record.date_start.weekday()) not in day_of_week:
-                    raise UserError(_('You can not set Start Date Which is not in your Working days! Kindly Check your Company Calendar!'))
-                if record.date_start and record.date_start.date() in holidays:
-                    raise UserError(_('You can not set Start Date Which is in Holidays! Kindly Check your Company Calendar!'))
-            else:
-                if not record.first_task and record.dependency_task_ids:
+            if record.date_start and str(record.date_start.weekday()) not in day_of_week:
+                raise UserError(
+                    _('You can not set Start Date Which is not in your Working days! Kindly Check your Company Calendar!'))
+            if record.date_start and record.date_start.date() in holidays:
+                raise UserError(_('You can not set Start Date Which is in Holidays! Kindly Check your Company Calendar!'))
+
+
+    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.date_end')
+    def _compute_start_date(self):
+        for record in self:
+            if not record.first_task and record.dependency_task_ids:
+                new_start_date = None
+                task_count = record.count_tasks()
+                '''
+                    If task_count = 1 and it has only one dependent task and that dependent task has 'completion_date' is set 
+                    then current task's 'date_start' = previous task's completion_date + 1.
+                '''
+                # list of all the 'completion_date' of the each dependent task
+                completion_date_lst = record.dependency_task_ids.mapped('task_id.completion_date')
+                end_date_lst = record.dependency_task_ids.mapped('task_id.date_end')
+                first_element = completion_date_lst[0]
+                if task_count == 1 and len(completion_date_lst) == 1 and completion_date_lst[0] != False:
+                    new_start_date = record.date_in_holiday(record.dependency_task_ids.task_id.completion_date)
+                elif False in completion_date_lst:
                     '''
-                        If task_count = 1 and it has only one dependent task and that dependent task has 'completion_date' is set 
-                        then current task's 'date_start' = previous task's completion_date + 1.
+                        If we have only one value in 'completion_date_lst' and the value is False
+                        then current task's 'date_start' is previous task's 'end_date' + 1
                     '''
-                    # list of all the 'completion_date' of the each dependent task
-                    completion_date_lst = record.dependency_task_ids.mapped('task_id.completion_date')
-                    end_date_lst = record.dependency_task_ids.mapped('task_id.date_end')
-                    first_element = completion_date_lst[0]
-                    if task_count == 1 and len(completion_date_lst) == 1 and completion_date_lst[0] != False:
-                        record.date_start = record.date_in_holiday(record.dependency_task_ids.task_id.completion_date)
-                    elif False in completion_date_lst:
+                    if len(completion_date_lst) == 1 and not completion_date_lst[0] and end_date_lst:
+                        new_start_date = record.date_in_holiday(end_date_lst[0])
+                    elif len(completion_date_lst) > 1 and all(([completion_date_lst[i] == False for i in range(len(completion_date_lst))])) and end_date_lst:
+                        max_end_date = max(sorted(end_date_lst))
+                        new_start_date = record.date_in_holiday(max_end_date)
+                    else:
                         '''
-                            If we have only one value in 'completion_date_lst' and the value is False
-                            then current task's 'date_start' is previous task's 'end_date' + 1
+                            If A1 completion date is set but A2 completion date is not set,
+                            then use A1 completion date +1 business day as A3 starting date.
                         '''
-                        if len(completion_date_lst) == 1 and not completion_date_lst[0] and end_date_lst:
-                            record.date_start = record.date_in_holiday(end_date_lst[0])
-                        elif len(completion_date_lst) > 1 and all(([completion_date_lst[i] == False for i in range(len(completion_date_lst))])) and end_date_lst:
+                        for i in range(len(completion_date_lst)):
+                            previous_el = completion_date_lst[i-1]
+                            if completion_date_lst[i] == False:
+                                # finding the number of times 'False' we are getting in list
+                                occurrences = completion_date_lst.count(False)
+                                if occurrences == 1:
+                                    if previous_el and previous_el != False:
+                                        new_start_date = record.date_in_holiday(previous_el)
+                                    elif previous_el:
+                                        # if occurrences are > 1 then, we will take max date from completion_date list
+                                        max_comp_date = max(sorted(completion_date_lst))
+                                        new_start_date = record.date_in_holiday(max_comp_date)
+                                else:
+                                    start_date = record.date_in_holiday(previous_el)
+                                    new_start_date = record.date_in_holiday(start_date)
+                else:
+                    for date_start in completion_date_lst:
+                        if date_start != first_element and False not in completion_date_lst:
+                            '''
+                                If 'first_element' of 'completion_date' is not equal to 'date' 
+                                then 'date_start' of the current task will be calculated from the previous task 
+                                (take all the dependent task and take 'max_date' from all the dependent task) completion date 
+                                (use ending date if completion date is not set) + 1
+                            '''
+                            max_date_start = max(sorted(completion_date_lst))
+                            start_date = record.date_in_holiday(max_date_start)
+                            new_start_date = record.date_in_holiday(start_date + timedelta(days=1))
+                        elif not date_start and False not in end_date_lst and len(completion_date_lst) == 0:
                             max_end_date = max(sorted(end_date_lst))
-                            record.date_start = record.date_in_holiday(max_end_date)
+                            start_date = record.date_in_holiday(max_end_date)
+                            new_start_date = record.date_in_holiday(start_date + timedelta(days=1))
                         else:
                             '''
-                                If A1 completion date is set but A2 completion date is not set,
-                                then use A1 completion date +1 business day as A3 starting date.
+                                If 'completion_date' of the previous tasks are same in the 'date_lst' then
+                                we simply set set 'date_start' as a 'first_element' + 1
                             '''
-                            for i in range(len(completion_date_lst)):
-                                previous_el = completion_date_lst[i-1]
-                                if completion_date_lst[i] == False:
-                                    # finding the number of times 'False' we are getting in list
-                                    occurrences = completion_date_lst.count(False)
-                                    if occurrences == 1:
-                                        if previous_el and previous_el != False:
-                                            record.date_start = record.date_in_holiday(previous_el)
-                                        elif previous_el:
-                                            # if occurrences are > 1 then, we will take max date from completion_date list
-                                            max_comp_date = max(sorted(completion_date_lst))
-                                            record.date_start = record.date_in_holiday(max_comp_date)
-                                    else:
-                                        start_date = record.date_in_holiday(previous_el)
-                                        record.date_start = record.date_in_holiday(start_date)
-                    else:
-                        for date_start in completion_date_lst:
-                            if date_start != first_element and False not in completion_date_lst:
-                                '''
-                                    If 'first_element' of 'completion_date' is not equal to 'date' 
-                                    then 'date_start' of the current task will be calculated from the previous task 
-                                    (take all the dependent task and take 'max_date' from all the dependent task) completion date 
-                                    (use ending date if completion date is not set) + 1
-                                '''
-                                max_date_start = max(sorted(completion_date_lst))
-                                start_date = record.date_in_holiday(max_date_start)
-                                record.date_start = record.date_in_holiday(start_date + timedelta(days=1))
-                            elif not date_start and False not in end_date_lst and len(completion_date_lst) == 0:
-                                max_end_date = max(sorted(end_date_lst))
-                                start_date = record.date_in_holiday(max_end_date)
-                                record.date_start = record.date_in_holiday(start_date + timedelta(days=1))
-                            else:
-                                '''
-                                    If 'completion_date' of the previous tasks are same in the 'date_lst' then
-                                    we simply set set 'date_start' as a 'first_element' + 1
-                                '''
-                                start_date = record.date_in_holiday(first_element)
-                                record.date_start = record.date_in_holiday(start_date + timedelta(days=1))
+                            start_date = record.date_in_holiday(first_element)
+                            new_start_date = record.date_in_holiday(start_date + timedelta(days=1))
+
+                # Only update date_start when the value changes to avoid triggering re-computation of end_date
+                if new_start_date != record.date_start:
+                    record.date_start = new_start_date
+
+            else:
+                record.date_start = record.date_start
+
 
     @api.depends('planned_duration', 'buffer_time', 'on_hold', 'date_start')
     def _compute_end_date(self):
         '''
-            Method for to set 'date_end' dynamically (applied forward calculation) according to 'date_start', 'planned_duration', 'buffer_time' and 'on_hold'.
+            Method for to compute 'date_end' dynamically (applied forward calculation) according to 'date_start', 'planned_duration', 'buffer_time' and 'on_hold'.
 
             Here, the calculation of 'date_end' is as follows:-
             date_end = date_start + planned_duration + buffer_time + on_hold
         '''
         for record in self:
-            sum_all = record.planned_duration + record.on_hold + record.buffer_time
-            start_date = record.date_start
-            if record.first_task or start_date:
-                record.date_end = record.get_forward_next_date(record.date_start)
+            if record.date_start:
+                duration = record.planned_duration + record.on_hold + record.buffer_time
+                record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
 
-    @api.depends('l_end_date','l_start_date','planned_duration','milestone','scheduling_mode')
+    @api.depends('l_end_date', 'l_start_date', 'planned_duration', 'milestone', 'scheduling_mode')
     def _compute_l_start_end_date(self):
         '''
             Method for to set 'l_start_date' dynamically (applied backward calculation) according to
