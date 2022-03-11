@@ -453,7 +453,7 @@ class TaskDependency(models.Model):
                     if len(completion_date_lst) == 1 and not completion_date_lst[0] and end_date_lst:
                         new_start_date = record.date_in_holiday(end_date_lst[0])
                     elif len(completion_date_lst) > 1 and all(([completion_date_lst[i] == False for i in range(len(completion_date_lst))])) and end_date_lst:
-                        max_end_date = max(sorted(end_date_lst))
+                        max_end_date = max(sorted([date for date in end_date_lst if date]))
                         new_start_date = record.date_in_holiday(max_end_date)
                     else:
                         '''
