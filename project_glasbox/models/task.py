@@ -297,9 +297,9 @@ class TaskDependency(models.Model):
                 l_end_cal = record.l_start_date - timedelta(days=1) if record.l_start_date else False
                 for task in record.dependency_task_ids:
                     if task_count == 0:
-                        task.task_id.l_start_date =  False
+                        task.task_id.l_start_date = False
                         task.task_id.l_end_date = False
-                    if not task.task_id.l_start_date and not task.task_id.l_end_date and l_end_cal:
+                    if l_end_cal:
                         while str(l_end_cal.weekday()) not in day_of_week:
                             l_end_cal -= timedelta(days=1)
                         while l_end_cal in holidays_l_end_date:
