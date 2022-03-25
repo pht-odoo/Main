@@ -5,6 +5,18 @@ from pytz import timezone, UTC
 from odoo.exceptions import ValidationError, UserError
 from odoo import models, fields, api, _
 
+class Company(models.Model):
+    _inherit = "res.company"
+
+    def write(self, vals):
+        res = super(Company, self).write(vals)
+        if vals.get('resource_calendar_id'):
+            tasks = self.env['project.task'].search(['|', ('company_id', '=', False), ('company_id', '=', self.id)])
+            for task in tasks:
+                task._compute_holiday_days()
+        return res
+
+
 class Project(models.Model):
     _inherit = "project.project"
 
@@ -69,6 +81,7 @@ class TaskDependency(models.Model):
         ("0", "Must Start On"),
         ("1", "Must Finish On"),
     ], string="Scheduling Mode", copy=True)
+    holiday_days = fields.Boolean(compute="_compute_holiday_days")
 
     def get_calendar(self):
         return self.env.company.resource_calendar_id
@@ -112,6 +125,17 @@ class TaskDependency(models.Model):
                     lst_days.append(days)
             return lst_days
 
+    def get_int_holidays_between_dates(self, start_date, end_date):
+        '''
+            Method for getting holiday's between two dates according to company's calendar.
+            Returns an Int.
+        '''
+        self.ensure_one()
+        leaves = self.get_global_ids().filtered(lambda d: d.date_from.date() >= start_date.date() and
+                                                          d.date_to.date() <= end_date.date())
+        return len(leaves)
+
+
     def get_holidays_between_dates(self, start_date, end_date):
         '''
             Method for getting holiday's between two dates according to company's calendar.
@@ -127,7 +151,7 @@ class TaskDependency(models.Model):
             for leave in leaves:
                 l_days = [leave.date_from.date()+timedelta(days=x) for x in range((leave.date_to.date()-leave.date_from.date()+timedelta(days=1)).days)]
                 # lst_days.append(days for days in l_days if start_date <= days <= end_date)
-                for days  in l_days:
+                for days in l_days:
                     if start_date.date() <= days <= end_date.date():
                         lst_days.append(days)
             return (working_days - len(lst_days) if working_days > 0 else len(lst_days) + working_days)
@@ -217,7 +241,7 @@ class TaskDependency(models.Model):
 
             if date in holidays:
                 date += timedelta(days=1)
-                date = record.check_date_weekend(date)
+                date = record.date_in_holiday(date)
             return date
 
     def _send_mail_template(self):
@@ -308,6 +332,32 @@ class TaskDependency(models.Model):
                         l_start_cal = task.task_id.get_backward_next_date(record.l_end_date, duration.days)
                         task.task_id.l_start_date = l_start_cal
 
+    # @api.depends('company_id.resource_calendar_id')
+    def _compute_holiday_days(self):
+        """Recompute holiday days for tasks that have a start date, an end date, and are not completed yet"""
+        for record in self:
+            holidays = 0
+            if record.date_start and not record.completion_date:
+                duration = record.planned_duration + record.on_hold + record.buffer_time
+                computed_end = record.get_forward_next_date(record.date_start, duration)
+                if computed_end and record.l_end_date:
+                    end_date = min(computed_end, record.l_end_date)
+                else:
+                    end_date = computed_end or record.l_end_date
+
+                holidays = record.get_int_holidays_between_dates(record.date_start, end_date)
+
+            record.holiday_days = holidays
+
+            # holiday_days = 0
+            # # get all holidays
+            # # check if any holidays happen in the middle of this task execution
+            # for day in holiday_days:
+            #     if record.date_start < day < earliest_end_date: #  and day not weekend
+            #         holiday_days += 1
+            #
+            # record.holiday_days = holiday_days
+
     @api.depends('completion_date', 'date_end')
     def _compute_end_comp(self):
         for task in self:
@@ -340,7 +390,7 @@ class TaskDependency(models.Model):
             else:
                 task.check_overdue = False
 
-    @api.depends('on_hold','check_c_date')
+    @api.depends('on_hold', 'check_c_date')
     def _check_hold(self):
         for task in self:
             if task.on_hold > 0:
@@ -364,7 +414,7 @@ class TaskDependency(models.Model):
             else:
                 task.check_ahead_schedule = False
 
-    @api.depends('completion_date','date_end')
+    @api.depends('completion_date', 'date_end')
     def _compute_delay(self):
         '''
             Method For calculating the 'task_delay' based on the 'completion_date' and 'date_end'.
@@ -503,7 +553,7 @@ class TaskDependency(models.Model):
                 record.date_start = record.date_start
 
 
-    @api.depends('planned_duration', 'buffer_time', 'on_hold', 'date_start')
+    @api.depends('planned_duration', 'buffer_time', 'on_hold', 'date_start', 'holiday_days')
     def _compute_end_date(self):
         '''
             Method for to compute 'date_end' dynamically (applied forward calculation) according to 'date_start', 'planned_duration', 'buffer_time' and 'on_hold'.
