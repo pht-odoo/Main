@@ -5,6 +5,18 @@ from pytz import timezone, UTC
 from odoo.exceptions import ValidationError, UserError
 from odoo import models, fields, api, _
 
+class Company(models.Model):
+    _inherit = "res.company"
+
+    def write(self, vals):
+        res = super(Company, self).write(vals)
+        if vals.get('resource_calendar_id'):
+            tasks = self.env['project.task'].search(['|', ('company_id', '=', False), ('company_id', '=', self.id)])
+            for task in tasks:
+                task._compute_holiday_days()
+        return res
+
+
 class Project(models.Model):
     _inherit = "project.project"
 
@@ -69,6 +81,7 @@ class TaskDependency(models.Model):
         ("0", "Must Start On"),
         ("1", "Must Finish On"),
     ], string="Scheduling Mode", copy=True)
+    holiday_days = fields.Boolean(compute="_compute_holiday_days")
 
     def get_calendar(self):
         return self.env.company.resource_calendar_id
@@ -108,13 +121,24 @@ class TaskDependency(models.Model):
             lst_days = []
             for leave in leaves:
                 l_days = [leave.date_from.date()+timedelta(days=x) for x in range((leave.date_to.date()-leave.date_from.date()+timedelta(days=1)).days)]
-                for days  in l_days:
+                for days in l_days:
                     lst_days.append(days)
             return lst_days
 
+    def get_int_holidays_between_dates(self, start_date, end_date):
+        '''
+            Method for getting holiday's between two dates according to company's calendar.
+            Returns an Int.
+        '''
+        self.ensure_one()
+        leaves = self.get_global_ids().filtered(lambda d: d.date_from.date() >= start_date.date() and
+                                                          d.date_to.date() <= end_date.date())
+        return len(leaves)
+
+
     def get_holidays_between_dates(self, start_date, end_date):
         '''
-            Method for getting holiday's between two dates according to comapny's calendar.
+            Method for getting holiday's between two dates according to company's calendar.
             You will get holiday's date in list
         '''
         for record in self:
@@ -127,7 +151,7 @@ class TaskDependency(models.Model):
             for leave in leaves:
                 l_days = [leave.date_from.date()+timedelta(days=x) for x in range((leave.date_to.date()-leave.date_from.date()+timedelta(days=1)).days)]
                 # lst_days.append(days for days in l_days if start_date <= days <= end_date)
-                for days  in l_days:
+                for days in l_days:
                     if start_date.date() <= days <= end_date.date():
                         lst_days.append(days)
             return (working_days - len(lst_days) if working_days > 0 else len(lst_days) + working_days)
@@ -146,7 +170,7 @@ class TaskDependency(models.Model):
                     next_date += timedelta(days=1)
                     if str(next_date.weekday()) not in day_of_week:
                         continue
-                    if next_date in holidays:
+                    if next_date.date() in holidays:
                         continue
                     duration -= 1
                 return next_date
@@ -167,29 +191,28 @@ class TaskDependency(models.Model):
                     next_date += timedelta(days=1)
                     if str(next_date.weekday()) not in day_of_week:
                         continue
-                    if next_date in holidays:
+                    if next_date.date() in holidays:
                         continue
                     duration -= 1
                 return next_date
 
-    def get_backward_next_date(self,previous_date):
+    def get_backward_next_date(self, previous_date, duration):
         '''
             Method for calculating 'start_date' according to any 'end_date'
         '''
-        for record in self:
-            resource_calendar = record.get_calendar()
-            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            duration = record.planned_duration - 1
-            holidays = record.get_holidays(previous_date)
-            if previous_date:
-                while duration > 0:
-                    previous_date -= timedelta(days=1)
-                    if str(previous_date.weekday()) not in day_of_week:
-                        continue
-                    if previous_date in holidays:
-                        continue
-                    duration -= 1
-                return previous_date
+        self.ensure_one()
+        resource_calendar = self.get_calendar()
+        day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+        holidays = self.get_holidays(previous_date)
+        if previous_date:
+            while duration > 0:
+                previous_date -= timedelta(days=1)
+                if str(previous_date.weekday()) not in day_of_week:
+                    continue
+                if previous_date.date() in holidays:
+                    continue
+                duration -= 1
+            return previous_date
 
     def check_date_weekend(self, date):
         '''
@@ -218,7 +241,7 @@ class TaskDependency(models.Model):
 
             if date in holidays:
                 date += timedelta(days=1)
-                date = record.check_date_weekend(date)
+                date = record.date_in_holiday(date)
             return date
 
     def _send_mail_template(self):
@@ -297,20 +320,43 @@ class TaskDependency(models.Model):
                 l_end_cal = record.l_start_date - timedelta(days=1) if record.l_start_date else False
                 for task in record.dependency_task_ids:
                     if task_count == 0:
-                        task.task_id.l_start_date =  False
+                        task.task_id.l_start_date = False
                         task.task_id.l_end_date = False
-                    if not task.task_id.l_start_date and not task.task_id.l_end_date and l_end_cal:
+                    if l_end_cal:
                         while str(l_end_cal.weekday()) not in day_of_week:
                             l_end_cal -= timedelta(days=1)
-                        while l_end_cal in holidays_l_end_date:
+                        while l_end_cal.date() in holidays_l_end_date:
                             l_end_cal -= timedelta(days=1)
                         task.task_id.l_end_date = l_end_cal
-                        l_start_cal = task.task_id.l_end_date - timedelta(task.task_id.planned_duration) - timedelta(task.task_id.on_hold) + timedelta(days=1)
-                        while str(l_start_cal.weekday()) not in day_of_week:
-                            l_start_cal -= timedelta(days=1)
-                        while l_start_cal in holidays_l_start_date:
-                            l_start_cal -= timedelta(days=1)
+                        duration = timedelta(task.task_id.planned_duration) - timedelta(task.task_id.on_hold)
+                        l_start_cal = task.task_id.get_backward_next_date(record.l_end_date, duration.days)
                         task.task_id.l_start_date = l_start_cal
+
+    # @api.depends('company_id.resource_calendar_id')
+    def _compute_holiday_days(self):
+        """Recompute holiday days for tasks that have a start date, an end date, and are not completed yet"""
+        for record in self:
+            holidays = 0
+            if record.date_start and not record.completion_date:
+                duration = record.planned_duration + record.on_hold + record.buffer_time
+                computed_end = record.get_forward_next_date(record.date_start, duration)
+                if computed_end and record.l_end_date:
+                    end_date = min(computed_end, record.l_end_date)
+                else:
+                    end_date = computed_end or record.l_end_date
+
+                holidays = record.get_int_holidays_between_dates(record.date_start, end_date)
+
+            record.holiday_days = holidays
+
+            # holiday_days = 0
+            # # get all holidays
+            # # check if any holidays happen in the middle of this task execution
+            # for day in holiday_days:
+            #     if record.date_start < day < earliest_end_date: #  and day not weekend
+            #         holiday_days += 1
+            #
+            # record.holiday_days = holiday_days
 
     @api.depends('completion_date', 'date_end')
     def _compute_end_comp(self):
@@ -344,7 +390,7 @@ class TaskDependency(models.Model):
             else:
                 task.check_overdue = False
 
-    @api.depends('on_hold','check_c_date')
+    @api.depends('on_hold', 'check_c_date')
     def _check_hold(self):
         for task in self:
             if task.on_hold > 0:
@@ -368,7 +414,7 @@ class TaskDependency(models.Model):
             else:
                 task.check_ahead_schedule = False
 
-    @api.depends('completion_date','date_end')
+    @api.depends('completion_date', 'date_end')
     def _compute_delay(self):
         '''
             Method For calculating the 'task_delay' based on the 'completion_date' and 'date_end'.
@@ -507,7 +553,7 @@ class TaskDependency(models.Model):
                 record.date_start = record.date_start
 
 
-    @api.depends('planned_duration', 'buffer_time', 'on_hold', 'date_start')
+    @api.depends('planned_duration', 'buffer_time', 'on_hold', 'date_start', 'holiday_days')
     def _compute_end_date(self):
         '''
             Method for to compute 'date_end' dynamically (applied forward calculation) according to 'date_start', 'planned_duration', 'buffer_time' and 'on_hold'.
@@ -542,6 +588,6 @@ class TaskDependency(models.Model):
             if record.l_start_date and record.l_start_date.date() in holidays_l_start_date or record.l_end_date and record.l_end_date.date() in holidays_l_end_date:
                 raise UserError(_('You can not set Date Which is in Holidays! Kindly Check your Company Calendar!'))
             if record.milestone and record.scheduling_mode == '1' and record.l_end_date:
-                record.l_start_date = record.get_backward_next_date(record.l_end_date)
+                record.l_start_date = record.get_backward_next_date(record.l_end_date, record.planned_duration - 1)
             elif record.milestone and record.scheduling_mode == '0' and record.l_start_date:
                 record.l_end_date = record.get_forward_l_end_date(record.l_start_date)

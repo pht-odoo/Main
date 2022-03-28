@@ -68,7 +68,7 @@ var CustomGanttRow = GanttRow.extend({
         this.slots = [];
 
         // We assume that the 'slots' (dates) are naturally ordered
-        // and that unavailabilties have been normalized
+        // and that unavailabilities have been normalized
         // (i.e. naturally ordered and pairwise disjoint).
         // A subslot is considered unavailable (and greyed) when totally covered by
         // an unavailability.

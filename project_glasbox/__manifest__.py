@@ -13,6 +13,7 @@
     "website": "http://www.odoo.com",
     "category": "Custom Development",
     "version": "1.0",
+    'license': 'OEEL-1',
     'depends': [
         'hr',
         'project_enterprise',
