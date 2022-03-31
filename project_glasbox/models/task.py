@@ -114,15 +114,13 @@ class TaskDependency(models.Model):
             You will get holiday's date in list.
         '''
         for record in self:
-            if record.l_end_date or record.completion_date or record.first_task or record.l_start_date:
-                leaves = record.get_global_ids().filtered(lambda d: start_date and d.date_from.date() < start_date.date())
-            else:
-                leaves = record.get_global_ids().filtered(lambda d: start_date and d.date_from.date() > start_date.date())
+            leaves = record.get_global_ids()
+
             lst_days = []
             for leave in leaves:
-                l_days = [leave.date_from.date()+timedelta(days=x) for x in range((leave.date_to.date()-leave.date_from.date()+timedelta(days=1)).days)]
-                for days in l_days:
-                    lst_days.append(days)
+                leave_duration = (leave.date_to.date() - leave.date_from.date() + timedelta(days=1)).days
+                l_days = [leave.date_from.date()+timedelta(days=x) for x in range(leave_duration)]
+                lst_days += l_days
             return lst_days
 
     def get_int_holidays_between_dates(self, start_date, end_date):
@@ -235,11 +233,11 @@ class TaskDependency(models.Model):
         '''
         for record in self:
             holidays = record.get_holidays(date)
-            if date and date not in holidays:
+            if date and date.date() not in holidays:
                 date += timedelta(days=1)
                 date = record.check_date_weekend(date)
 
-            if date in holidays:
+            if date.date() in holidays:
                 date += timedelta(days=1)
                 date = record.date_in_holiday(date)
             return date
