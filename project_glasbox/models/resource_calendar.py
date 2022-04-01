@@ -11,7 +11,7 @@ class ResourceCalendar(models.Model):
         """
         res = super(ResourceCalendar, self).write(vals)
         if vals.get('attendance_ids') or vals.get('global_leave_ids'):
-            companies = self.env['res.company'].sudo().search([('resource_calendar_id', '=', self.ids)])
+            companies = self.env['res.company'].sudo().search([('resource_calendar_id', 'in', self.ids)])
             tasks = self.env['project.task'].search(
                 ['|', ('company_id', '=', False), ('company_id', 'in', companies.ids)])
 
@@ -28,6 +28,12 @@ class ResourceCalendar(models.Model):
                 holidays = task.get_holidays(task.l_start_date)
                 if task.l_start_date and task.l_start_date.date() in holidays:
                     task.write({'l_start_date': task.get_forward_next_date(task.l_start_date, 1)})
+
+            # 3. Check if the latest end date of the milestone tasks (scheduling mode = Must End On) is on a holiday. If so, recompute it.
+            for task in milestone_tasks:
+                holidays = task.get_holidays(task.l_start_date)
+                if task.l_end_date and task.l_end_date.date() in holidays:
+                    task.write({'l_end_date': task.get_forward_l_end_date(task.l_start_date)})
 
             tasks._compute_holiday_days()
         return res

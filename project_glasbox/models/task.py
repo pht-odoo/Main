@@ -74,8 +74,8 @@ class TaskDependency(models.Model):
     check_end_or_comp_date = fields.Datetime(string='Checking End or Completion Date', compute='_compute_end_comp', store=True, copy=True)
     milestone = fields.Boolean(string='Mark as Milestone', default=False, copy=True)
     first_task = fields.Boolean(string='First Task', default=False, copy=True)
-    l_start_date = fields.Datetime(string='Latest Start Date', compute='_compute_l_start_date', store=True, copy=True)
-    l_end_date = fields.Datetime(string='Latest End Date', compute='_compute_l_end_date', store=True, copy=True)
+    l_start_date = fields.Datetime(string='Latest Start Date', compute='_compute_l_start_date', inverse='_set_l_start_date', store=True, copy=True)
+    l_end_date = fields.Datetime(string='Latest End Date', compute='_compute_l_end_date', inverse='_set_l_end_date', store=True, copy=True)
     duration_mode = fields.Char(readonly=True, copy=True)
     delay_due_to = fields.Char(string="Delay Due To", copy=True)
     check_delay = fields.Boolean(string="Check Delay", compute="_compute_check_delay", copy=True)
@@ -91,10 +91,10 @@ class TaskDependency(models.Model):
     holiday_days = fields.Boolean(compute="_compute_holiday_days")
 
 
-    @api.constrains('date_start')
-    def _check_start_date(self):
-        for record in self:
-            record._check_date_in_holiday(record.date_start)
+    # @api.constrains('date_start')
+    # def _check_start_date(self):
+    #     for record in self:
+    #         record._check_date_in_holiday(record.date_start)
 
     # @api.constrains('date_end')
     # def _check_start_date(self):
@@ -106,10 +106,10 @@ class TaskDependency(models.Model):
     #     for record in self:
     #         record._check_date_in_holiday(record.l_start_date)
 
-    @api.constrains('l_end_date')
-    def _check_start_date(self):
-        for record in self:
-            record._check_date_in_holiday(record.l_end_date)
+    # @api.constrains('l_end_date')
+    # def _check_start_date(self):
+    #     for record in self:
+    #         record._check_date_in_holiday(record.l_end_date)
 
     def _check_date_in_holiday(self, target_date):
         self.ensure_one()
@@ -217,7 +217,6 @@ class TaskDependency(models.Model):
             Method for calculating the 'l_end_date' according to any 'l_start_date'
         '''
         for record in self:
-            duration = 0
             resource_calendar = record.get_calendar()
             day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
             holidays = record.get_holidays(next_date)
@@ -271,6 +270,8 @@ class TaskDependency(models.Model):
             If 'date' is not in holiday then we will increment date through one day and check that 'date' is in weekend or not. 
         '''
         for record in self:
+            if not date:
+                return False
             holidays = record.get_holidays(date)
             if date and date.date() not in holidays:
                 date += timedelta(days=1)
@@ -588,6 +589,12 @@ class TaskDependency(models.Model):
             if record.date_start:
                 duration = record.planned_duration + record.on_hold + record.buffer_time
                 record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
+
+    def _set_l_start_date(self):
+        pass
+
+    def _set_l_end_date(self):
+        pass
 
     @api.depends('l_end_date', 'planned_duration', 'milestone', 'scheduling_mode')
     def _compute_l_start_date(self):
