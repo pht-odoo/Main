@@ -18,9 +18,16 @@ class ResourceCalendar(models.Model):
             # 1. Check if the start date of the first tasks is on a holiday. If so, recompute it.
             first_tasks = tasks.filtered(lambda t: t.first_task)
             for task in first_tasks:
-                holidays = task.get_holidays(task.first_task)
+                holidays = task.get_holidays(task.date_start)
                 if task.date_start and task.date_start.date() in holidays:
                     task.write({'date_start': task.get_forward_next_date(task.date_start, 1)})
+
+            # 2. Check if the latest start date of the milestone tasks (scheduling mode = Must Start On) is on a holiday. If so, recompute it.
+            milestone_tasks = tasks.filtered(lambda t: t.milestone)
+            for task in milestone_tasks:
+                holidays = task.get_holidays(task.l_start_date)
+                if task.l_start_date and task.l_start_date.date() in holidays:
+                    task.write({'l_start_date': task.get_forward_next_date(task.l_start_date, 1)})
 
             tasks._compute_holiday_days()
         return res
