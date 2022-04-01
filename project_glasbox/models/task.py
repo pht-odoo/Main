@@ -12,8 +12,15 @@ class Company(models.Model):
         res = super(Company, self).write(vals)
         if vals.get('resource_calendar_id'):
             tasks = self.env['project.task'].search(['|', ('company_id', '=', False), ('company_id', '=', self.id)])
-            for task in tasks:
-                task._compute_holiday_days()
+
+            # 1. Check if the start date of the first tasks is on a holiday. If so, recompute it.
+            first_tasks = tasks.filtered(lambda t: t.first_task)
+            for task in first_tasks:
+                holidays = task.get_holidays(task.first_task)
+                if task.date_start and task.date_start.date() in holidays:
+                    task.write({'date_start': task.get_forward_next_date(task.date_start, 1)})
+
+            tasks._compute_holiday_days()
         return res
 
 
