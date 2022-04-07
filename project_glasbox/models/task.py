@@ -18,7 +18,7 @@ class Company(models.Model):
             for task in first_tasks:
                 holidays = task.get_holidays(task.date_start)
                 if task.date_start and task.date_start.date() in holidays:
-                    task.write({'date_start': task.get_forward_next_date(task.date_start, 1)})
+                    task.write({'date_start': task.get_next_business_day(task.date_start)})
 
             tasks._compute_holiday_days()
         return res
@@ -90,26 +90,6 @@ class TaskDependency(models.Model):
     ], string="Scheduling Mode", copy=True)
     holiday_days = fields.Boolean(compute="_compute_holiday_days")
 
-
-    # @api.constrains('date_start')
-    # def _check_start_date(self):
-    #     for record in self:
-    #         record._check_date_in_holiday(record.date_start)
-
-    # @api.constrains('date_end')
-    # def _check_start_date(self):
-    #     for record in self:
-    #         record._check_date_in_holiday(record.date_end)
-
-    # @api.constrains('l_start_date')
-    # def _check_start_date(self):
-    #     for record in self:
-    #         record._check_date_in_holiday(record.l_start_date)
-
-    # @api.constrains('l_end_date')
-    # def _check_start_date(self):
-    #     for record in self:
-    #         record._check_date_in_holiday(record.l_end_date)
 
     def _check_date_in_holiday(self, target_date):
         self.ensure_one()
@@ -193,62 +173,124 @@ class TaskDependency(models.Model):
                         lst_days.append(days)
             return (working_days - len(lst_days) if working_days > 0 else len(lst_days) + working_days)
 
-    def get_forward_next_date(self, next_date, duration):
+    def get_next_business_day(self, next_date):
         '''
-            Method for calculating the 'end_date' according to any 'start_date'
-        '''
-        for record in self:
-            resource_calendar = record.get_calendar()
-            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            holidays = record.get_holidays(next_date)
-            if next_date:
-                next_date = next_date + timedelta(days=-1)
-                while duration > 0:
-                    next_date += timedelta(days=1)
-                    if str(next_date.weekday()) not in day_of_week:
-                        continue
-                    if next_date.date() in holidays:
-                        continue
-                    duration -= 1
-                return next_date
-
-    def get_forward_l_end_date(self, next_date):
-        '''
-            Method for calculating the 'l_end_date' according to any 'l_start_date'
-        '''
-        for record in self:
-            resource_calendar = record.get_calendar()
-            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            holidays = record.get_holidays(next_date)
-            duration = record.planned_duration
-            if next_date:
-                next_date = next_date + timedelta(days=-1)
-                while duration > 0:
-                    next_date += timedelta(days=1)
-                    if str(next_date.weekday()) not in day_of_week:
-                        continue
-                    if next_date.date() in holidays:
-                        continue
-                    duration -= 1
-                return next_date
-
-    def get_backward_next_date(self, previous_date, duration):
-        '''
-            Method for calculating 'start_date' according to any 'end_date'
+            Calculates and returns the following business day after a certain date accounting for weekends and holidays.
         '''
         self.ensure_one()
         resource_calendar = self.get_calendar()
         day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-        holidays = self.get_holidays(previous_date)
-        if previous_date:
+        holidays = self.get_holidays(next_date)
+        if next_date:
+            next_date += timedelta(days=1)
+            while str(next_date.weekday()) not in day_of_week or next_date.date() in holidays:
+                next_date += timedelta(days=1)
+        return next_date
+
+    def get_previous_business_day(self, next_date):
+        '''
+            Calculates and returns the previous business day after a certain date accounting for weekends and holidays.
+        '''
+        self.ensure_one()
+        resource_calendar = self.get_calendar()
+        day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+        holidays = self.get_holidays(next_date)
+        if next_date:
+            next_date += timedelta(days=1)
+            while str(next_date.weekday()) not in day_of_week or next_date.date() in holidays:
+                next_date += timedelta(days=1)
+        return next_date
+
+
+    def get_forward_next_date(self, next_date, duration):
+        '''
+            Calculates and returns the 'end_date' according to any 'start_date'
+        '''
+        self.ensure_one()
+        if next_date:
+            duration -= 1
             while duration > 0:
-                previous_date -= timedelta(days=1)
-                if str(previous_date.weekday()) not in day_of_week:
-                    continue
-                if previous_date.date() in holidays:
-                    continue
+                next_date = self.get_next_business_day(next_date)
                 duration -= 1
-            return previous_date
+        return next_date
+
+    def get_backward_next_date(self, next_date, duration):
+        '''
+            Calculates and returns the 'start_date' according to any 'end_date'
+        '''
+        self.ensure_one()
+        if next_date:
+            duration -= 1
+            while duration > 0:
+                next_date = self.get_previous_business_day(next_date)
+                duration -= 1
+        return next_date
+
+    # def get_forward_next_date_OLD(self, next_date, duration):
+    #     '''
+    #         Method for calculating the 'end_date' according to any 'start_date'
+    #     '''
+    #     for record in self:
+    #         resource_calendar = record.get_calendar()
+    #         day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+    #         holidays = record.get_holidays(next_date)
+    #         if next_date:
+    #             next_date = next_date + timedelta(days=-1)
+    #             while duration > 0:
+    #                 next_date += timedelta(days=1)
+    #                 if str(next_date.weekday()) not in day_of_week:
+    #                     continue
+    #                 if next_date.date() in holidays:
+    #                     continue
+    #                 duration -= 1
+    #             return next_date
+
+    # def get_forward_l_end_date_OLD(self, next_date):
+    #     '''
+    #         Method for calculating the 'l_end_date' according to any 'l_start_date'
+    #     '''
+    #     for record in self:
+    #         resource_calendar = record.get_calendar()
+    #         day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+    #         holidays = record.get_holidays(next_date)
+    #         duration = record.planned_duration
+    #         if next_date:
+    #             next_date = next_date + timedelta(days=-1)
+    #             while duration > 0:
+    #                 next_date += timedelta(days=1)
+    #                 if str(next_date.weekday()) not in day_of_week:
+    #                     continue
+    #                 if next_date.date() in holidays:
+    #                     continue
+    #                 duration -= 1
+    #             return next_date
+
+    def get_forward_l_end_date(self, next_date):
+        '''
+            Calculates and returns the 'l_end_date' according to any 'l_start_date'
+        '''
+        self.ensure_one()
+        return self.get_forward_next_date(next_date, self.planned_durationn)
+
+    # def get_backward_next_date_OLD(self, previous_date, duration):
+    #     '''
+    #         Method for calculating 'start_date' according to any 'end_date'
+    #     '''
+    #     self.ensure_one()
+    #     resource_calendar = self.get_calendar()
+    #     day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+    #     holidays = self.get_holidays(previous_date)
+    #     if previous_date:
+    #         while duration > 0:
+    #             previous_date -= timedelta(days=1)
+    #             if str(previous_date.weekday()) not in day_of_week:
+    #                 continue
+    #             if previous_date.date() in holidays:
+    #                 continue
+    #             duration -= 1
+    #         return previous_date
+
+
 
     def check_date_weekend(self, date):
         '''
@@ -263,24 +305,25 @@ class TaskDependency(models.Model):
                 date = record.check_date_weekend(s_date)
             return date
 
-    def date_in_holiday(self, date):
-        '''
-            Method for to check 'date' is in holiday or not.
-            If 'date' is in holiday then we will increment date by one day and check that 'date' is in weekend or not.
-            If 'date' is not in holiday then we will increment date through one day and check that 'date' is in weekend or not. 
-        '''
-        for record in self:
-            if not date:
-                return False
-            holidays = record.get_holidays(date)
-            if date and date.date() not in holidays:
-                date += timedelta(days=1)
-                date = record.check_date_weekend(date)
+    # def date_in_holiday(self, date):
+    #     '''
+    #         Method for to check 'date' is in holiday or not.
+    #         If 'date' is in holiday then we will increment date by one day and check that 'date' is in weekend or not.
+    #         If 'date' is not in holiday then we will increment date through one day and check that 'date' is in weekend or not.
+    #     '''
+    #     for record in self:
+    #         if not date:
+    #             return False
+    #         holidays = record.get_holidays(date)
+    #         if date and date.date() not in holidays:
+    #             date += timedelta(days=1)
+    #             date = record.check_date_weekend(date)
+    #
+    #         if date.date() in holidays:
+    #             date += timedelta(days=1)
+    #             date = record.date_in_holiday(date)
+    #         return date
 
-            if date.date() in holidays:
-                date += timedelta(days=1)
-                date = record.date_in_holiday(date)
-            return date
 
     def _send_mail_template(self):
         for record in self:
@@ -304,17 +347,17 @@ class TaskDependency(models.Model):
         res = super().write(vals)
         for record in self:
             record.l_start_end_date()
-            task_count = record.count_tasks()
+            # task_count = record.count_tasks()
 
             if 'completion_date' in vals and vals['completion_date']:
-                date_start = datetime.strptime(vals['completion_date'], "%Y-%m-%d %H:%M:%S")
-                tasks = record.env['project.task'].search([('dependency_task_ids.task_id', 'in', record.ids)])
-                if task_count == 0:
-                    tasks.write({
-                        'date_start': False,
-                        'date_end': False
-                        })
-                tasks.write({'date_start': record.date_in_holiday(date_start)})
+                # date_start = datetime.strptime(vals['completion_date'], "%Y-%m-%d %H:%M:%S")
+                # tasks = record.env['project.task'].search([('dependency_task_ids.task_id', 'in', record.ids)])
+                # if task_count == 0:
+                #     tasks.write({
+                #         'date_start': False,
+                #         'date_end': False
+                #         })
+                # tasks.write({'date_start': record.date_in_holiday(date_start)})
                 record._send_mail_template()
         return res
 
@@ -513,7 +556,7 @@ class TaskDependency(models.Model):
                 end_dates = record.dependency_task_ids.filtered(lambda r: not r.task_id.completion_date and r.task_id.date_end).mapped('task_id.date_end')
                 finish_dates = completion_dates + end_dates
                 if finish_dates:
-                    new_start_date = record.date_in_holiday(max(finish_dates))
+                    new_start_date = record.get_next_business_day(max(finish_dates))
 
                 # Only update date_start when the value changes to avoid triggering re-computation of end_date
                 if new_start_date != record.date_start:
