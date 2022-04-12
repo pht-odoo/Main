@@ -13,13 +13,12 @@ class Company(models.Model):
         if vals.get('resource_calendar_id'):
             tasks = self.env['project.task'].search(['|', ('company_id', '=', False), ('company_id', '=', self.id)])
 
-            # 1. Check if the start date of the first tasks is on a holiday. If so, recompute it.
+            # Check if the start date of the first tasks is on a holiday. If so, recompute it.
             first_tasks = tasks.filtered(lambda t: t.first_task)
             for task in first_tasks:
                 holidays = task.get_holidays(task.date_start)
                 if task.date_start and task.date_start.date() in holidays:
                     task.write({'date_start': task.get_next_business_day(task.date_start)})
-
             tasks._compute_holiday_days()
         return res
 
@@ -30,8 +29,8 @@ class Project(models.Model):
     @api.returns('self', lambda value: value.id)
     def copy(self, default=None):
         """
-            logic for copying all the dependency tasks with new updated 'project_id'
-            while duplicating whole the project.
+        Logic for copying all the dependency tasks with new updated 'project_id'
+        while duplicating whole the project.
         """
         # search old list self.task_ids = old_tasks
         old_tasks = self.task_ids
@@ -44,7 +43,7 @@ class Project(models.Model):
             dependent_task = []
             # logic for setting current project on dependency_task's project_id
             for d_task in old.dependency_task_ids:
-                dependent_task = new_tasks.filtered(lambda x:x.name == d_task.task_id.name).id
+                dependent_task = new_tasks.filtered(lambda x: x.name == d_task.task_id.name).id
                 task.write({
                     'dependency_task_ids': [(0, 0, {'task_id': dependent_task})]
                 })
@@ -58,6 +57,7 @@ class DependingTasks(models.Model):
     project_id = fields.Many2one('project.project', string='Project', related='task_id.project_id')
     depending_task_id = fields.Many2one('project.task', required=True)
     relation_type = fields.Char('Relation', default="Finish To Start")
+
 
 class TaskDependency(models.Model):
     _inherit = "project.task"
@@ -91,327 +91,50 @@ class TaskDependency(models.Model):
     holiday_days = fields.Boolean(compute="_compute_holiday_days")
 
 
-    def _check_date_in_holiday(self, target_date):
-        self.ensure_one()
-        holidays = self.get_holidays(target_date)
-        resource_calendar = self.get_calendar()
-        day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-        if target_date and str(target_date.weekday()) not in day_of_week:
-            raise UserError(_('You can not set a date which is not in your Working days! Kindly check your Company Calendar!'))
-        if target_date and target_date.date() in holidays:
-            raise UserError(_('You can not set a date which is a Holiday! Kindly check your Company Calendar!'))
-
-
-    def get_calendar(self):
-        return self.env.company.resource_calendar_id
-
-    def check_weekends(self):
-        for record in self:
-            resource_calendar = record.get_calendar()
-            day_of_week = resource_calendar.attendance_ids.dayofweek
-
-    def get_global_ids(self):
-        return self.get_calendar().global_leave_ids
-
-    def count_tasks(self):
-        return len(self.dependency_task_ids.mapped('task_id'))
-
-    def get_work_days(self):
-        '''
-            Method for getting company's work_days(business_days) according to company's calendar.
-        '''
-        for record in self:
-            resource_calendar = record.get_calendar()
-            sum_hours = sum((attendance.hour_to - attendance.hour_from) for attendance in resource_calendar.attendance_ids)
-            hour = resource_calendar.hours_per_day
-            day_of_week = resource_calendar.attendance_ids
-            return (sum_hours / hour)
-
-    def get_holidays(self, start_date):
-        '''
-            Method for getting company's holiday's according to company's calendar and only one date.
-            You will get holiday's date in list.
-        '''
-        for record in self:
-            leaves = record.get_global_ids()
-
-            lst_days = []
-            for leave in leaves:
-                leave_duration = (leave.date_to.date() - leave.date_from.date() + timedelta(days=1)).days
-                l_days = [leave.date_from.date()+timedelta(days=x) for x in range(leave_duration)]
-                lst_days += l_days
-            return lst_days
-
-    def get_int_holidays_between_dates(self, start_date, end_date):
-        '''
-            Method for getting holiday's between two dates according to company's calendar.
-            Returns an Int.
-        '''
-        self.ensure_one()
-        leaves = self.get_global_ids().filtered(lambda d: d.date_from.date() >= start_date.date() and
-                                                          d.date_to.date() <= end_date.date())
-        return len(leaves)
-
-
-    def get_holidays_between_dates(self, start_date, end_date):
-        '''
-            Method for getting holiday's between two dates according to company's calendar.
-            You will get holiday's date in list
-        '''
-        for record in self:
-            work_days = record.get_work_days()
-            daydiff = start_date.weekday() - end_date.weekday()
-            working_days = ((start_date-end_date).days - daydiff) / 7 * work_days + min(daydiff,work_days) - (max(start_date.weekday() - 4, 0) % work_days)
-
-            leaves = record.get_global_ids().filtered(lambda d: d.date_from.date() > start_date.date())
-            lst_days = []
-            for leave in leaves:
-                l_days = [leave.date_from.date()+timedelta(days=x) for x in range((leave.date_to.date()-leave.date_from.date()+timedelta(days=1)).days)]
-                # lst_days.append(days for days in l_days if start_date <= days <= end_date)
-                for days in l_days:
-                    if start_date.date() <= days <= end_date.date():
-                        lst_days.append(days)
-            return (working_days - len(lst_days) if working_days > 0 else len(lst_days) + working_days)
-
-    def get_next_business_day(self, next_date):
-        '''
-            Calculates and returns the following business day after a certain date accounting for weekends and holidays.
-        '''
-        self.ensure_one()
-        resource_calendar = self.get_calendar()
-        day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-        holidays = self.get_holidays(next_date)
-        if next_date:
-            next_date += timedelta(days=1)
-            while str(next_date.weekday()) not in day_of_week or next_date.date() in holidays:
-                next_date += timedelta(days=1)
-        return next_date
-
-    def get_previous_business_day(self, next_date):
-        '''
-            Calculates and returns the previous business day after a certain date accounting for weekends and holidays.
-        '''
-        self.ensure_one()
-        resource_calendar = self.get_calendar()
-        day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-        holidays = self.get_holidays(next_date)
-        if next_date:
-            next_date += timedelta(days=1)
-            while str(next_date.weekday()) not in day_of_week or next_date.date() in holidays:
-                next_date += timedelta(days=1)
-        return next_date
-
-
-    def get_forward_next_date(self, next_date, duration):
-        '''
-            Calculates and returns the 'end_date' according to any 'start_date'
-        '''
-        self.ensure_one()
-        if next_date:
-            duration -= 1
-            while duration > 0:
-                next_date = self.get_next_business_day(next_date)
-                duration -= 1
-        return next_date
-
-    def get_backward_next_date(self, next_date, duration):
-        '''
-            Calculates and returns the 'start_date' according to any 'end_date'
-        '''
-        self.ensure_one()
-        if next_date:
-            duration -= 1
-            while duration > 0:
-                next_date = self.get_previous_business_day(next_date)
-                duration -= 1
-        return next_date
-
-    # def get_forward_next_date_OLD(self, next_date, duration):
-    #     '''
-    #         Method for calculating the 'end_date' according to any 'start_date'
-    #     '''
-    #     for record in self:
-    #         resource_calendar = record.get_calendar()
-    #         day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-    #         holidays = record.get_holidays(next_date)
-    #         if next_date:
-    #             next_date = next_date + timedelta(days=-1)
-    #             while duration > 0:
-    #                 next_date += timedelta(days=1)
-    #                 if str(next_date.weekday()) not in day_of_week:
-    #                     continue
-    #                 if next_date.date() in holidays:
-    #                     continue
-    #                 duration -= 1
-    #             return next_date
-
-    # def get_forward_l_end_date_OLD(self, next_date):
-    #     '''
-    #         Method for calculating the 'l_end_date' according to any 'l_start_date'
-    #     '''
-    #     for record in self:
-    #         resource_calendar = record.get_calendar()
-    #         day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-    #         holidays = record.get_holidays(next_date)
-    #         duration = record.planned_duration
-    #         if next_date:
-    #             next_date = next_date + timedelta(days=-1)
-    #             while duration > 0:
-    #                 next_date += timedelta(days=1)
-    #                 if str(next_date.weekday()) not in day_of_week:
-    #                     continue
-    #                 if next_date.date() in holidays:
-    #                     continue
-    #                 duration -= 1
-    #             return next_date
-
-    def get_forward_l_end_date(self, next_date):
-        '''
-            Calculates and returns the 'l_end_date' according to any 'l_start_date'
-        '''
-        self.ensure_one()
-        return self.get_forward_next_date(next_date, self.planned_durationn)
-
-    # def get_backward_next_date_OLD(self, previous_date, duration):
-    #     '''
-    #         Method for calculating 'start_date' according to any 'end_date'
-    #     '''
-    #     self.ensure_one()
-    #     resource_calendar = self.get_calendar()
-    #     day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-    #     holidays = self.get_holidays(previous_date)
-    #     if previous_date:
-    #         while duration > 0:
-    #             previous_date -= timedelta(days=1)
-    #             if str(previous_date.weekday()) not in day_of_week:
-    #                 continue
-    #             if previous_date.date() in holidays:
-    #                 continue
-    #             duration -= 1
-    #         return previous_date
-
-
-
-    def check_date_weekend(self, date):
-        '''
-            Method for to check whether the 'date' is in weekend or not.
-            If the date is in weekend then we will update that date according to company's workday.
-        '''
-        for record in self:
-            resource_calendar = record.get_calendar()
-            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            if date and str(date.weekday()) not in day_of_week:
-                s_date = date + timedelta(days=1)
-                date = record.check_date_weekend(s_date)
-            return date
-
-    # def date_in_holiday(self, date):
-    #     '''
-    #         Method for to check 'date' is in holiday or not.
-    #         If 'date' is in holiday then we will increment date by one day and check that 'date' is in weekend or not.
-    #         If 'date' is not in holiday then we will increment date through one day and check that 'date' is in weekend or not.
-    #     '''
-    #     for record in self:
-    #         if not date:
-    #             return False
-    #         holidays = record.get_holidays(date)
-    #         if date and date.date() not in holidays:
-    #             date += timedelta(days=1)
-    #             date = record.check_date_weekend(date)
-    #
-    #         if date.date() in holidays:
-    #             date += timedelta(days=1)
-    #             date = record.date_in_holiday(date)
-    #         return date
-
-
-    def _send_mail_template(self):
-        for record in self:
-            '''
-                Method for sending mail to the assigned user of A3 task, when it's dependent tasks 
-                A1's completion date is set and A2's completion date is not set.
-                Whenever, A2's completion date is set, mail will be automatically sent to the A3 Task's
-                assigned user.
-            '''
-            template = record.env.ref('project_glasbox.task_completion_email_template')
-            tasks = record.env['project.task'].search([('dependency_task_ids.task_id', 'in', record.ids)])
-            tasks.message_post_with_template(template_id=template.id)
-
-    def write(self, vals):
-        # OVERRIDE to write method
-        '''
-            If the A1 completion date is set but the A2 completion date is not set,
-            Until A2's completion date is set, A3 starting date will get updated according to
-            A2's completion date (because A2 is the latest completion date then A1)
-        '''
-        res = super().write(vals)
-        for record in self:
-            record.l_start_end_date()
-            # task_count = record.count_tasks()
-
-            if 'completion_date' in vals and vals['completion_date']:
-                # date_start = datetime.strptime(vals['completion_date'], "%Y-%m-%d %H:%M:%S")
-                # tasks = record.env['project.task'].search([('dependency_task_ids.task_id', 'in', record.ids)])
-                # if task_count == 0:
-                #     tasks.write({
-                #         'date_start': False,
-                #         'date_end': False
-                #         })
-                # tasks.write({'date_start': record.date_in_holiday(date_start)})
-                record._send_mail_template()
-        return res
-
     @api.onchange('completion_date')
     def onchange_completion_date(self):
-        '''
-            The Completion date can only be today’s date! 
-            Nobody can set yesterday's or next week’s date as the completion date.
-        '''
+        """
+        The Completion date is always defaulted to today's date.
+        Nobody can set yesterday's or next week’s date as the completion date.
+        """
         ctx = self.env.context
         for record in self:
             if ctx.get('c_date') and record.completion_date:
                 record.completion_date = datetime.now()
-                holidays = record.get_holidays(record.completion_date)
-                resource_calendar = record.get_calendar()
-                day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-                if record.completion_date and str(record.completion_date.weekday()) not in day_of_week:
-                    raise UserError(_('You can not set Completion Date Which is not in your Working days! Kindly Check your Company Calendar!'))
-                if record.completion_date and record.completion_date in holidays:
-                    raise UserError(_('You can not set Completion Date Which is in Holidays! Kindly Check your Company Calendar!'))
+                record._check_date_in_holiday(record.completion_date)
 
-    # @api.onchange('dependency_task_ids', 'l_start_date', 'dependency_task_ids.task_id.stage_id', 'dependency_task_ids.task_id.l_start_date')
-    def l_start_end_date(self):
+    #OVERWRITE
+    def write(self, vals):
+        res = super().write(vals)
         for record in self:
-            resource_calendar = record.get_calendar()
-            day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
-            task_count = record.count_tasks()
-            # if record.dependency_task_ids:
-            holidays_l_start_date = record.get_holidays(record.l_start_date)
-            holidays_l_end_date = record.get_holidays(record.l_end_date)
-            '''
-                For none milestone task, 'l_start_date' will be calculated when the milestone tasks’ Latest start/end date got inserted.
-                Use the current task calculated Latest end date -  current task Duration (but not buffer time) - current task On hold (if any).
-                Read-only field for non-milestone tasks.
-            '''
-            '''
-                For none milestone task, 'l_end_date' is calculate with the next tasks’ latest start date minus one business day.
-                This will be the read-only field.
-            '''
-            if record.dependency_task_ids:
-                l_end_cal = record.l_start_date - timedelta(days=1) if record.l_start_date else False
+            # Update record's dependencies latest start/end dates
+            if 'l_start_date' in vals and vals['l_start_date'] or 'l_end_date' in vals and vals['l_end_date']:
+                record._l_start_end_date()
+
+            if 'completion_date' in vals and vals['completion_date']:
+                record._send_mail_template()
+        return res
+
+
+    def _l_start_end_date(self):
+        """
+        This method gets called when the record is updated/written and updates all of its dependencies latest start/end dates.
+
+        For non-milestone task, 'l_start_date' will be calculated when the milestone tasks’ Latest start/end date gets inserted.
+        Use the current task calculated Latest end date - current task Duration (but not buffer time) - current task On hold (if any).
+        Read-only field for non-milestone tasks.
+
+        For non-milestone task, 'l_end_date' is calculate with the next tasks’ latest start date minus one business day.
+        This will be the read-only field.
+        """
+        for record in self:
+            if record.dependency_task_ids and record.l_start_date:
                 for task in record.dependency_task_ids:
-                    if task_count == 0:
-                        task.task_id.l_start_date = False
-                        task.task_id.l_end_date = False
-                    if l_end_cal:
-                        while str(l_end_cal.weekday()) not in day_of_week or l_end_cal.date() in holidays_l_end_date:
-                            l_end_cal -= timedelta(days=1)
-                        task.task_id.write({'l_end_date': l_end_cal})
-                        duration = timedelta(task.task_id.planned_duration) - timedelta(task.task_id.on_hold)
-                        task.task_id.write({'l_start_date': task.task_id.get_backward_next_date(task.task_id.l_end_date, duration.days)})
+                    task.task_id.write({'l_end_date': task.get_previous_business_day(record.l_start_date)})
+                    duration = timedelta(task.task_id.planned_duration) - timedelta(task.task_id.on_hold)
+                    task.task_id.write({'l_start_date': task.task_id.get_backward_next_date(task.task_id.l_end_date, duration.days)})
 
 
-    # @api.depends('company_id.resource_calendar_id')
     def _compute_holiday_days(self):
         """Recompute holiday days for tasks that have a start date, an end date, and are not completed yet"""
         for record in self:
@@ -423,19 +146,161 @@ class TaskDependency(models.Model):
                     end_date = min(computed_end, record.l_end_date)
                 else:
                     end_date = computed_end or record.l_end_date
-
                 holidays = record.get_int_holidays_between_dates(record.date_start, end_date)
 
             record.holiday_days = holidays
 
-            # holiday_days = 0
-            # # get all holidays
-            # # check if any holidays happen in the middle of this task execution
-            # for day in holiday_days:
-            #     if record.date_start < day < earliest_end_date: #  and day not weekend
-            #         holiday_days += 1
-            #
-            # record.holiday_days = holiday_days
+
+    def _send_mail_template(self):
+        """
+        Sends email to the assigned user of A3 task, when it's dependent tasks
+        A1's completion date is set and A2's completion date is not set.
+        Whenever, A2's completion date is set, mail will be automatically sent to the A3 Task's
+        assigned user.
+        """
+        for record in self:
+            template = record.env.ref('project_glasbox.task_completion_email_template')
+            tasks = record.env['project.task'].search([('dependency_task_ids.task_id', 'in', record.ids)])
+            tasks.message_post_with_template(template_id=template.id)
+
+    def _convert_utc_to_calendar_tz(self, date_naive):
+        """
+        Converts and returns the datetime converted from standard UTC (no explicit timezone) to the calendar timezone.
+        :param date_naive: Datetime with no timezone information. Corresponds to server stored datetime in UTC.
+        :return: Datetime with the associated timezone that was specified in the main working calendar.
+        """
+        self.ensure_one()
+        calendar_tz = timezone(self.get_calendar().tz)
+        date_utc = UTC.localize(date_naive)
+        date_user_tz = date_utc.astimezone(timezone(self.env.user.tz))
+        date_cal_tz = date_user_tz.replace(tzinfo=calendar_tz)
+        return date_cal_tz
+
+    def _check_date_in_holiday(self, target_date):
+        self.ensure_one()
+        resource_calendar = self.get_calendar()
+        day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+        holidays = self.get_holidays(target_date)
+        target_date = self._convert_utc_to_calendar_tz(target_date)
+
+        if target_date and str(target_date.weekday()) not in day_of_week:
+            raise UserError(_('You can not set a date which is not in your Working days! Kindly check your Company Calendar!'))
+        if target_date and target_date.date() in holidays:
+            raise UserError(_('You can not set a date which is a Holiday! Kindly check your Company Calendar!'))
+
+    def _is_business_day(self, target_date):
+        """
+        Returns True if the input date is not a holiday or is not a weekend.
+        The target date is converted to the official calendar timezone for the comparison.
+        """
+        self.ensure_one()
+        resource_calendar = self.get_calendar()
+        day_of_week = resource_calendar.attendance_ids.mapped('dayofweek')
+        holidays = self.get_holidays(target_date)
+        target_date = self._convert_utc_to_calendar_tz(target_date)
+        return str(target_date.weekday()) in day_of_week and target_date.date() not in holidays
+
+
+    def get_calendar(self):
+        return self.env.company.resource_calendar_id
+
+    def get_global_ids(self):
+        return self.get_calendar().global_leave_ids
+
+    def dependency_count(self):
+        return len(self.dependency_task_ids.mapped('task_id'))
+
+    def get_holidays(self, start_date):
+        """
+        Method for getting company's holiday's according to company's calendar and only one date.
+        return: List of holiday dates
+        """
+        for record in self:
+            leaves = record.get_global_ids()
+            lst_days = []
+            for leave in leaves:
+                date_to = record._convert_utc_to_calendar_tz(leave.date_to)
+                date_from = record._convert_utc_to_calendar_tz(leave.date_from)
+
+                leave_duration = (date_to.date() - date_from.date() + timedelta(days=1)).days
+                l_days = [date_from.date() + timedelta(days=x) for x in range(leave_duration)]
+                lst_days += l_days
+            return lst_days
+
+    def get_int_holidays_between_dates(self, start_date, end_date):
+        """Returns an Int representing the number of holiday days between two dates according to company's calendar."""
+        self.ensure_one()
+        leaves = self.get_global_ids().filtered(lambda d: d.date_from.date() >= start_date.date() and
+                                                          d.date_to.date() <= end_date.date())
+        return len(leaves)
+
+
+    def get_holidays_between_dates(self, start_date, end_date):
+        """Returns an Int representing the number of business days between two dates.
+        The number will be negative if end_date is earlier than start_date."""
+        self.ensure_one()
+        sign = 1
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date  # swap the variables to start with the earliest day
+            sign = -1
+
+        duration = 1
+        while start_date < end_date:
+            start_date += timedelta(days=1)
+            if self._is_business_day(start_date):
+                duration += 1
+
+        return duration * sign
+
+
+    def get_next_business_day(self, next_date):
+        """
+        Calculates and returns the following business day after a certain date accounting for weekends and holidays.
+        """
+        self.ensure_one()
+        if next_date:
+            next_date += timedelta(days=1)
+            while not self._is_business_day(next_date):
+                next_date += timedelta(days=1)
+        return next_date
+
+    def get_previous_business_day(self, next_date):
+        """
+        Calculates and returns the previous business day after a certain date accounting for weekends and holidays.
+        """
+        self.ensure_one()
+        if next_date:
+            next_date -= timedelta(days=1)
+            while not self._is_business_day(next_date):
+                next_date -= timedelta(days=1)
+        return next_date
+
+
+    def get_forward_next_date(self, next_date, duration):
+        """Calculates and returns the 'end_date' according to any 'start_date' and a duration"""
+        self.ensure_one()
+        if next_date:
+            duration -= 1
+            while duration > 0:
+                next_date = self.get_next_business_day(next_date)
+                duration -= 1
+        return next_date
+
+    def get_backward_next_date(self, next_date, duration):
+        """Calculates and returns the 'start_date' according to any 'end_date' and a duration"""
+        self.ensure_one()
+        if next_date:
+            duration -= 1
+            while duration > 0:
+                next_date = self.get_previous_business_day(next_date)
+                duration -= 1
+        return next_date
+
+
+    # -------------------------------------------------------------------------
+    # COMPUTE METHODS
+    # -------------------------------------------------------------------------
+
 
     @api.depends('completion_date', 'date_end')
     def _compute_end_comp(self):
@@ -495,51 +360,32 @@ class TaskDependency(models.Model):
 
     @api.depends('completion_date', 'date_end')
     def _compute_delay(self):
-        '''
-            Method For calculating the 'task_delay' based on the 'completion_date' and 'date_end'.
-            task_delay = completion_date - date_end
-            Here, you will get 'negative delay' if task finished if the task finished earlier than planned.
-        '''
-        # self.ensure_one()
+        """
+        Method For calculating the 'task_delay' based on the 'completion_date' and 'date_end'.
+        task_delay = completion_date - date_end
+        Here, you will get 'negative delay' if task finished earlier than planned.
+        """
         for record in self:
             if record.date_end and record.completion_date:
-                # start_date = record.completion_date
-                # end_date = record.date_end
                 record.task_delay = record.get_holidays_between_dates(record.completion_date, record.date_end)
             if not record.completion_date:
                 record.task_delay = 0
 
-    @api.depends('dependency_task_ids.task_id.completion_date')
+    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.accumulated_delay')
     def _compute_accumulated_delay(self):
         for record in self:
-            task_count = record.count_tasks()
-            # if task_count = 0 it means that no task is set as a 'dependent task'
-            if task_count == 0:
-                if record.dependency_task_ids:
-                    record.accumulated_delay = 0 # set 'accumulated_delay' is 0 if no dependent task is set
-                else:
-                    record.accumulated_delay = record.accumulated_delay
+            if record.first_task or record.dependency_count() == 0:
+                record.accumulated_delay = 0
             else:
-                '''
-                    Only fill in accumulated delay when all previous dependent tasks have a completion date.
-                '''
-                # list of all the 'completion_date' of the each dependent task
-                completion_date_lst = record.dependency_task_ids.task_id.mapped('completion_date')
-                if False in completion_date_lst:
+                # Only fill in accumulated delay when all previous dependent tasks have a completion date.
+                incomplete_tasks = record.dependency_task_ids.mapped('task_id').filtered(lambda task: not task.completion_date)
+                if incomplete_tasks:
                     record.accumulated_delay = 0
                 else:
-                    '''
-                        If current task is not 'first_task' and it has dependent tasks and 'taks_count' is 1 and the dependent task is 'first_task'
-                        then set 'accumulated_delay' = dependent task's 'task_delay' + current task's task_delay
-                    '''
-                    if task_count == 1 and record.dependency_task_ids.task_id['first_task']:
-                        record.accumulated_delay = record.dependency_task_ids.task_id['task_delay'] + record.task_delay
-                    elif task_count > 1 and False not in completion_date_lst and all(record.dependency_task_ids.task_id.mapped('first_task')):
-                        delay_lst = record.dependency_task_ids.task_id.mapped('task_delay')
-                        record.accumulated_delay = max(sorted(delay_lst)) + record.task_delay
-                    else:
-                        delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
-                        record.accumulated_delay = max(sorted(delay_lst)) + record.task_delay
+                    # If current task is not 'first_task' and it has dependent tasks
+                    # then set 'accumulated_delay' = dependent tasks' max 'accumulated_delay' + current task's task_delay
+                    delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
+                    record.accumulated_delay = max(delay_lst) + record.task_delay
 
 
     @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.date_end')
@@ -554,9 +400,9 @@ class TaskDependency(models.Model):
                 new_start_date = None
                 completion_dates = record.dependency_task_ids.filtered('task_id.completion_date').mapped('task_id.completion_date')
                 end_dates = record.dependency_task_ids.filtered(lambda r: not r.task_id.completion_date and r.task_id.date_end).mapped('task_id.date_end')
-                finish_dates = completion_dates + end_dates
-                if finish_dates:
-                    new_start_date = record.get_next_business_day(max(finish_dates))
+                finish_date = max(completion_dates + end_dates)
+                if finish_date:
+                    new_start_date = record.get_next_business_day(finish_date)
 
                 # Only update date_start when the value changes to avoid triggering re-computation of end_date
                 if new_start_date != record.date_start:
@@ -565,50 +411,46 @@ class TaskDependency(models.Model):
 
     @api.depends('planned_duration', 'buffer_time', 'on_hold', 'date_start', 'holiday_days')
     def _compute_end_date(self):
-        '''
-            Method for to compute 'date_end' dynamically (applied forward calculation) according to 'date_start', 'planned_duration', 'buffer_time' and 'on_hold'.
-
-            Here, the calculation of 'date_end' is as follows:-
-            date_end = date_start + planned_duration + buffer_time + on_hold
-        '''
+        """
+        Computes the end date of a task applying forward calculation.
+        date_end = date_start + planned_duration + buffer_time + on_hold
+        """
         for record in self:
             if record.date_start:
                 duration = record.planned_duration + record.on_hold + record.buffer_time
                 record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
+
+
+    @api.depends('l_end_date', 'planned_duration', 'milestone', 'scheduling_mode')
+    def _compute_l_start_date(self):
+        """
+            Method for to set 'l_start_date' dynamically (applied backward calculation) according to
+            'l_end_date' and 'planned_duration'
+
+            Here, the calculation of 'l_start_date' is as follows:-
+            l_start_date = l_end_date - planned_duration
+        """
+        for record in self:
+            if record.milestone and record.scheduling_mode == '1' and record.l_end_date:
+                record._check_date_in_holiday(record.l_end_date)
+                record.l_start_date = record.get_backward_next_date(record.l_end_date, record.planned_duration)
+
+    @api.depends('l_start_date', 'planned_duration', 'milestone', 'scheduling_mode')
+    def _compute_l_end_date(self):
+        """
+            Method for to set 'l_end_date' dynamically (applied forward calculation) according to
+            'l_end_date' and 'planned_duration'
+
+            Here, the calculation of 'l_end_date' is as follows:-
+            l_end_date = l_date_start + planned_duration
+        """
+        for record in self:
+            if record.milestone and record.scheduling_mode == '0' and record.l_start_date:
+                record._check_date_in_holiday(record.l_start_date)
+                record.l_end_date = record.get_forward_next_date(record.l_start_date, record.planned_durationn)
 
     def _set_l_start_date(self):
         pass
 
     def _set_l_end_date(self):
         pass
-
-    @api.depends('l_end_date', 'planned_duration', 'milestone', 'scheduling_mode')
-    def _compute_l_start_date(self):
-        '''
-            Method for to set 'l_start_date' dynamically (applied backward calculation) according to
-            'l_end_date' and 'planned_duration'
-
-            Here, the calculation of 'l_start_date' is as follows:-
-            l_start_date = l_end_date - planned_duration
-
-            Here, the calculation of 'l_end_date' is as follows:-
-            l_end_date = l_date_start + planned_duration
-        '''
-        for record in self:
-            if record.milestone and record.scheduling_mode == '1' and record.l_end_date:
-                record._check_date_in_holiday(record.l_end_date)
-                record.l_start_date = record.get_backward_next_date(record.l_end_date, record.planned_duration - 1)
-
-    @api.depends('l_start_date', 'planned_duration', 'milestone', 'scheduling_mode')
-    def _compute_l_end_date(self):
-        '''
-            Method for to set 'l_end_date' dynamically (applied forward calculation) according to
-            'l_end_date' and 'planned_duration'
-
-            Here, the calculation of 'l_end_date' is as follows:-
-            l_end_date = l_date_start + planned_duration
-        '''
-        for record in self:
-            if record.milestone and record.scheduling_mode == '0' and record.l_start_date:
-                record._check_date_in_holiday(record.l_start_date)
-                record.l_end_date = record.get_forward_l_end_date(record.l_start_date)
