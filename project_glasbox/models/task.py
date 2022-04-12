@@ -130,7 +130,7 @@ class TaskDependency(models.Model):
         for record in self:
             if record.dependency_task_ids and record.l_start_date:
                 for task in record.dependency_task_ids:
-                    task.task_id.write({'l_end_date': task.get_previous_business_day(record.l_start_date)})
+                    task.task_id.write({'l_end_date': task.task_id.get_previous_business_day(record.l_start_date)})
                     duration = timedelta(task.task_id.planned_duration) - timedelta(task.task_id.on_hold)
                     task.task_id.write({'l_start_date': task.task_id.get_backward_next_date(task.task_id.l_end_date, duration.days)})
 
@@ -447,7 +447,7 @@ class TaskDependency(models.Model):
         for record in self:
             if record.milestone and record.scheduling_mode == '0' and record.l_start_date:
                 record._check_date_in_holiday(record.l_start_date)
-                record.l_end_date = record.get_forward_next_date(record.l_start_date, record.planned_durationn)
+                record.l_end_date = record.get_forward_next_date(record.l_start_date, record.planned_duration)
 
     def _set_l_start_date(self):
         pass
