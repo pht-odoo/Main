@@ -400,9 +400,9 @@ class TaskDependency(models.Model):
                 new_start_date = None
                 completion_dates = record.dependency_task_ids.filtered('task_id.completion_date').mapped('task_id.completion_date')
                 end_dates = record.dependency_task_ids.filtered(lambda r: not r.task_id.completion_date and r.task_id.date_end).mapped('task_id.date_end')
-                finish_date = max(completion_dates + end_dates)
-                if finish_date:
-                    new_start_date = record.get_next_business_day(finish_date)
+                finish_dates = completion_dates + end_dates
+                if finish_dates:
+                    new_start_date = record.get_next_business_day(max(finish_dates))
 
                 # Only update date_start when the value changes to avoid triggering re-computation of end_date
                 if new_start_date != record.date_start:
