@@ -244,8 +244,8 @@ class TaskDependency(models.Model):
             start_date, end_date = end_date, start_date  # swap the variables to start with the earliest day
             sign = -1
 
-        duration = 1
-        while start_date < end_date:
+        duration = 0
+        while start_date.date() < end_date.date():
             start_date += timedelta(days=1)
             if self._is_business_day(start_date):
                 duration += 1
@@ -367,7 +367,7 @@ class TaskDependency(models.Model):
         """
         for record in self:
             if record.date_end and record.completion_date:
-                record.task_delay = record.get_holidays_between_dates(record.completion_date, record.date_end)
+                record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
             if not record.completion_date:
                 record.task_delay = 0
 
