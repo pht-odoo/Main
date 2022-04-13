@@ -239,13 +239,17 @@ class TaskDependency(models.Model):
         """Returns an Int representing the number of business days between two dates.
         The number will be negative if end_date is earlier than start_date."""
         self.ensure_one()
+        start_date_tz = self._convert_utc_to_calendar_tz(start_date)
+        end_date_tz = self._convert_utc_to_calendar_tz(end_date)
+
         sign = 1
-        if start_date > end_date:
+        if start_date_tz > end_date_tz:
             start_date, end_date = end_date, start_date  # swap the variables to start with the earliest day
             sign = -1
 
         duration = 0
-        while start_date.date() < end_date.date():
+        while start_date_tz.date() < end_date_tz.date():
+            start_date_tz += timedelta(days=1)
             start_date += timedelta(days=1)
             if self._is_business_day(start_date):
                 duration += 1
