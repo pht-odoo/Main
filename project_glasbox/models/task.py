@@ -101,7 +101,7 @@ class TaskDependency(models.Model):
         for record in self:
             if ctx.get('c_date') and record.completion_date:
                 record.completion_date = datetime.now()
-                record._check_date_in_holiday(record.completion_date)
+                # record._check_date_in_holiday(record.completion_date)
 
     #OVERWRITE
     def write(self, vals):
@@ -371,15 +371,17 @@ class TaskDependency(models.Model):
         """
         for record in self:
             if record.date_end and record.completion_date:
-                record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
+                print(int((record.date_end.date() - record.completion_date.date()).days),'\n\n\n')
+                record.task_delay = int((record.date_end.date() - record.completion_date.date()).days)
+                # record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
             if not record.completion_date:
                 record.task_delay = 0
 
-    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.accumulated_delay')
+    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.accumulated_delay','task_delay')
     def _compute_accumulated_delay(self):
         for record in self:
             if record.first_task or record.dependency_count() == 0:
-                record.accumulated_delay = 0
+                record.accumulated_delay = record.task_delay
             else:
                 # Only fill in accumulated delay when all previous dependent tasks have a completion date.
                 incomplete_tasks = record.dependency_task_ids.mapped('task_id').filtered(lambda task: not task.completion_date)
