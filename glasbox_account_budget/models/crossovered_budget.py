@@ -24,7 +24,6 @@ class CrossoveredBudgetLines(models.Model):
 
     @api.depends('sale_ids','purchase_ids','sale_ids.amount_untaxed','purchase_ids.amount_untaxed')
     def _compute_planned_amount(self):
-        print('We will see')
         for line in self:
             line.planned_amount = 0
             for sale in line.sale_ids:
