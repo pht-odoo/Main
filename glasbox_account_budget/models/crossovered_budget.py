@@ -12,6 +12,7 @@ class CrossoveredBudget(models.Model):
 class CrossoveredBudgetLines(models.Model):
     _inherit = "crossovered.budget.lines"
 
+    print('A print')
     date_from = fields.Date('Start Date', required=False)
     date_to = fields.Date('End Date', required=False)
     sale_ids = fields.Many2many('sale.order', string="Sale Orders")
@@ -23,6 +24,7 @@ class CrossoveredBudgetLines(models.Model):
 
     @api.depends('sale_ids','purchase_ids','sale_ids.amount_untaxed','purchase_ids.amount_untaxed')
     def _compute_planned_amount(self):
+        print('We will see')
         for line in self:
             line.planned_amount = 0
             for sale in line.sale_ids:
