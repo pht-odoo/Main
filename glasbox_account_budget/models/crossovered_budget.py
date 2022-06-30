@@ -12,6 +12,7 @@ class CrossoveredBudget(models.Model):
 class CrossoveredBudgetLines(models.Model):
     _inherit = "crossovered.budget.lines"
 
+    print('A print')
     date_from = fields.Date('Start Date', required=False)
     date_to = fields.Date('End Date', required=False)
     sale_ids = fields.Many2many('sale.order', string="Sale Orders")
