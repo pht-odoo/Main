@@ -381,7 +381,7 @@ class ProjectTask(models.Model):
         for record in self:
             if record.date_end and record.completion_date:
                 print(int((record.date_end.date() - record.completion_date.date()).days),'\n\n\n')
-                record.task_delay = int((record.date_end.date() - record.completion_date.date()).days)
+                record.task_delay = int((record.completion_date.date()).days - record.date_end.date())
                 # record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
             if not record.completion_date:
                 record.task_delay = 0
