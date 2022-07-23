@@ -5,6 +5,23 @@ from pytz import timezone, UTC
 from odoo.exceptions import ValidationError, UserError
 from odoo import models, fields, api, _
 
+class Company(models.Model):
+    _inherit = "res.company"
+
+    def write(self, vals):
+        res = super(Company, self).write(vals)
+        if vals.get('resource_calendar_id'):
+            tasks = self.env['project.task'].search(['|', ('company_id', '=', False), ('company_id', '=', self.id)])
+
+            # Check if the start date of the first tasks is on a holiday. If so, recompute it.
+            first_tasks = tasks.filtered(lambda t: t.first_task)
+            for task in first_tasks:
+                holidays = task.get_holidays(task.date_start)
+                if task.date_start and task.date_start.date() in holidays:
+                    task.write({'date_start': task.get_next_business_day(task.date_start)})
+            tasks._compute_holiday_days()
+        return res
+
 
 class Project(models.Model):
     _inherit = "project.project"
@@ -17,7 +34,9 @@ class Project(models.Model):
         """
         # search old list self.task_ids = old_tasks
         old_tasks = self.task_ids
+        # then super call
         project = super(Project, self).copy(default)
+        #new tasks
         new_tasks = project.mapped('task_ids')
         for task in new_tasks:
             old = old_tasks.filtered(lambda x: x.name == task.name)
@@ -39,21 +58,8 @@ class DependingTasks(models.Model):
     depending_task_id = fields.Many2one('project.task', required=True)
     relation_type = fields.Char('Relation', default="Finish To Start")
 
-    def get_all_tasks_to_be_updated(self):
-        seen_tasks = self.env['project.task']
-        res = []
-        tasks = self.depending_task_id
-        dependency_layers = []
-        while tasks:
-            dependency_layers.append(tasks)
-            tasks = tasks.dependent_task_ids.depending_task_id
-        for layer in reversed(dependency_layers):
-            res.append(layer - seen_tasks)
-            seen_tasks |= layer
-        return reversed(res)
 
-
-class ProjectTask(models.Model):
+class TaskDependency(models.Model):
     _inherit = "project.task"
 
     planned_duration = fields.Integer(string='Duration', default=1, copy=True)
@@ -62,9 +68,8 @@ class ProjectTask(models.Model):
     accumulated_delay = fields.Integer(string='Accumulated Delay', compute='_compute_accumulated_delay', store=True, copy=True)
     on_hold = fields.Integer(string="On Hold", copy=True)
     dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id', string="Dependent Task", copy=False)
-    dependent_task_ids = fields.One2many('project.depending.tasks', 'task_id', string="Dependent Task", copy=False)
-    date_start = fields.Datetime(string='Starting Date', store=True, copy=True)
-    date_end = fields.Datetime(string='Ending Date', readonly=True, store=True, copy=True)
+    date_start = fields.Datetime(string='Starting Date', compute='_compute_start_date', store=True, copy=True)
+    date_end = fields.Datetime(string='Ending Date', readonly=True, compute='_compute_end_date', store=True, copy=True)
     completion_date = fields.Datetime(string='Completion Date', copy=True)
     check_end_or_comp_date = fields.Datetime(string='Checking End or Completion Date', compute='_compute_end_comp', store=True, copy=True)
     milestone = fields.Boolean(string='Mark as Milestone', default=False, copy=True)
@@ -100,30 +105,16 @@ class ProjectTask(models.Model):
 
     #OVERWRITE
     def write(self, vals):
-        dates_modified = 'date_start' in vals
         res = super().write(vals)
-        for record in self.with_context(modifying_vals=True):
-            if 'date_start' in vals:
-                if 'date_end' not in vals:
-                    record.date_end = record.get_forward_next_date(self.date_start, self.planned_duration + self.on_hold + self.buffer_time) if self.date_start else False
+        for record in self:
             # Update record's dependencies latest start/end dates
             if 'l_start_date' in vals and vals['l_start_date'] or 'l_end_date' in vals and vals['l_end_date']:
                 record._l_start_end_date()
 
             if 'completion_date' in vals and vals['completion_date']:
                 record._send_mail_template()
-        if not self._context.get('modifying_vals') and dates_modified:
-            self.with_context(modifying_vals=True)._update_dependencies()
         return res
 
-    def _update_dependencies(self):
-        self.ensure_one()
-        for layer in self.dependent_task_ids.get_all_tasks_to_be_updated():
-            for task in layer:
-                finish_dates = task.dependency_task_ids.task_id.filtered(
-                    lambda t: t.completion_date or t.date_end).mapped(lambda t: t.completion_date or t.date_end)
-                if finish_dates:
-                    task.date_start = task.get_next_business_day(max(finish_dates))
 
     def _l_start_end_date(self):
         """
@@ -293,7 +284,7 @@ class ProjectTask(models.Model):
         """Calculates and returns the 'end_date' according to any 'start_date' and a duration"""
         self.ensure_one()
         if next_date:
-            duration -= 1
+            # duration -= 1
             while duration > 0:
                 next_date = self.get_next_business_day(next_date)
                 duration -= 1
@@ -380,7 +371,8 @@ class ProjectTask(models.Model):
         """
         for record in self:
             if record.date_end and record.completion_date:
-                record.task_delay = (record.completion_date.date() - record.date_end.date()).days
+                print(record.date_end.date(),record.completion_date.date(),'lmo\n\n\n')
+                record.task_delay = (record.date_end.date() - record.completion_date.date()).days
                 # record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
             if not record.completion_date:
                 record.task_delay = 0
@@ -411,18 +403,31 @@ class ProjectTask(models.Model):
         """
         for record in self:
             if not record.first_task and record.dependency_task_ids:
-                finish_dates = record.dependency_task_ids.task_id.filtered(lambda t: t.completion_date or t.date_end).mapped(lambda t: t.completion_date or t.date_end)
+                new_start_date = None
+                completion_dates = record.dependency_task_ids.filtered('task_id.completion_date').mapped('task_id.completion_date')
+                end_dates = record.dependency_task_ids.filtered(lambda r: not r.task_id.completion_date and r.task_id.date_end).mapped('task_id.date_end')
+                finish_dates = completion_dates + end_dates
                 if finish_dates:
-                    record.date_start = record.get_next_business_day(max(finish_dates))
+                    new_start_date = record.get_next_business_day(max(finish_dates))
+
+                # Only update date_start when the value changes to avoid triggering re-computation of end_date
+                if new_start_date != record.date_start:
+                    record.date_start = new_start_date
 
 
-    def _get_end_date(self):
+    @api.depends('planned_duration', 'buffer_time', 'on_hold', 'date_start', 'holiday_days')
+    def _compute_end_date(self):
         """
         Computes the end date of a task applying forward calculation.
         date_end = date_start + planned_duration + buffer_time + on_hold
         """
-        self.ensure_one()
-        return self.get_forward_next_date(self.date_start, self.planned_duration + self.on_hold + self.buffer_time) if self.date_start else False
+        for record in self:
+            print(record.date_start,'hello')
+            if record.date_start:
+                duration = record.planned_duration + record.on_hold + record.buffer_time
+                print(duration,'duration\n\n\n')
+                print(record.get_forward_next_date(record.date_start, duration),'enddate\n\n\n')
+                record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
 
 
     @api.depends('l_end_date', 'planned_duration', 'milestone', 'scheduling_mode')
