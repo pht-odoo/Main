@@ -68,6 +68,7 @@ class TaskDependency(models.Model):
     accumulated_delay = fields.Integer(string='Accumulated Delay', compute='_compute_accumulated_delay', store=True, copy=True)
     on_hold = fields.Integer(string="On Hold", copy=True)
     dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id', string="Dependent Task", copy=False)
+    dependent_task_ids = fields.One2many('project.depending.tasks', 'task_id', string="Dependent Task", copy=False)
     date_start = fields.Datetime(string='Starting Date', compute='_compute_start_date', store=True, copy=True)
     date_end = fields.Datetime(string='Ending Date', readonly=True, compute='_compute_end_date', store=True, copy=True)
     completion_date = fields.Datetime(string='Completion Date', copy=True)
