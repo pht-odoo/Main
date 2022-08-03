@@ -374,7 +374,11 @@ class TaskDependency(models.Model):
             if record.date_end and record.completion_date:
                 print(record.date_end.date(),record.completion_date.date(),'lmo\n\n\n')
                 # record.task_delay = (record.completion_date.date() - record.date_end.date()).days
-                record.task_delay = record.get_holidays_between_dates(record.completion_date, record.date_end)
+                if record.completion_date > record.date_end:
+                    record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
+                else:
+                    task_delay = record.get_holidays_between_dates(record.completion_date, record.date_end)
+                    record.task_delay = task_delay * -1
             if not record.completion_date:
                 record.task_delay = 0
 
