@@ -390,13 +390,13 @@ class TaskDependency(models.Model):
             else:
                 # Only fill in accumulated delay when all previous dependent tasks have a completion date.
                 incomplete_tasks = record.dependency_task_ids.mapped('task_id').filtered(lambda task: not task.completion_date)
-                if incomplete_tasks:
-                    record.accumulated_delay = 0
-                else:
+                # if incomplete_tasks:
+                #     record.accumulated_delay = 0
+                # else:
                     # If current task is not 'first_task' and it has dependent tasks
                     # then set 'accumulated_delay' = dependent tasks' max 'accumulated_delay' + current task's task_delay
-                    delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
-                    record.accumulated_delay = max(delay_lst) + record.task_delay
+                delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
+                record.accumulated_delay = max(delay_lst) + record.task_delay
 
 
     @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.date_end')
@@ -429,10 +429,11 @@ class TaskDependency(models.Model):
         for record in self:
             print(record.date_start,'hello')
             if record.date_start:
-                duration = record.planned_duration + record.on_hold + record.buffer_time
-                print(duration,'duration\n\n\n')
-                print(record.get_forward_next_date(record.date_start, duration),'enddate\n\n\n')
-                record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
+                duration = (record.planned_duration + record.on_hold + record.buffer_time) - 1
+                if duration == 0:
+                    record.write({'date_end': record.date_start + timedelta(hours=8)})
+                else:
+                    record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
 
 
     @api.depends('l_end_date', 'planned_duration', 'milestone', 'scheduling_mode')
