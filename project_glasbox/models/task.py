@@ -68,6 +68,7 @@ class TaskDependency(models.Model):
     accumulated_delay = fields.Integer(string='Accumulated Delay', compute='_compute_accumulated_delay', store=True, copy=True)
     on_hold = fields.Integer(string="On Hold", copy=True)
     dependency_task_ids = fields.One2many('project.depending.tasks', 'depending_task_id', string="Dependent Task", copy=False)
+    dependent_task_ids = fields.One2many('project.depending.tasks', 'task_id', string="Dependent Task", copy=False)
     date_start = fields.Datetime(string='Starting Date', compute='_compute_start_date', store=True, copy=True)
     date_end = fields.Datetime(string='Ending Date', readonly=True, compute='_compute_end_date', store=True, copy=True)
     completion_date = fields.Datetime(string='Completion Date', copy=True)
@@ -101,7 +102,7 @@ class TaskDependency(models.Model):
         for record in self:
             if ctx.get('c_date') and record.completion_date:
                 record.completion_date = datetime.now()
-                record._check_date_in_holiday(record.completion_date)
+                # record._check_date_in_holiday(record.completion_date)
 
     #OVERWRITE
     def write(self, vals):
@@ -284,7 +285,7 @@ class TaskDependency(models.Model):
         """Calculates and returns the 'end_date' according to any 'start_date' and a duration"""
         self.ensure_one()
         if next_date:
-            duration -= 1
+            # duration -= 1
             while duration > 0:
                 next_date = self.get_next_business_day(next_date)
                 duration -= 1
@@ -371,25 +372,31 @@ class TaskDependency(models.Model):
         """
         for record in self:
             if record.date_end and record.completion_date:
-                record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
+                print(record.date_end.date(),record.completion_date.date(),'lmo\n\n\n')
+                # record.task_delay = (record.completion_date.date() - record.date_end.date()).days
+                if record.completion_date > record.date_end:
+                    record.task_delay = record.get_holidays_between_dates(record.date_end, record.completion_date)
+                else:
+                    task_delay = record.get_holidays_between_dates(record.completion_date, record.date_end)
+                    record.task_delay = task_delay * -1
             if not record.completion_date:
                 record.task_delay = 0
 
-    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.accumulated_delay')
+    @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.accumulated_delay','task_delay')
     def _compute_accumulated_delay(self):
         for record in self:
             if record.first_task or record.dependency_count() == 0:
-                record.accumulated_delay = 0
+                record.accumulated_delay = record.task_delay
             else:
                 # Only fill in accumulated delay when all previous dependent tasks have a completion date.
                 incomplete_tasks = record.dependency_task_ids.mapped('task_id').filtered(lambda task: not task.completion_date)
-                if incomplete_tasks:
-                    record.accumulated_delay = 0
-                else:
+                # if incomplete_tasks:
+                #     record.accumulated_delay = 0
+                # else:
                     # If current task is not 'first_task' and it has dependent tasks
                     # then set 'accumulated_delay' = dependent tasks' max 'accumulated_delay' + current task's task_delay
-                    delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
-                    record.accumulated_delay = max(delay_lst) + record.task_delay
+                delay_lst = record.dependency_task_ids.task_id.mapped('accumulated_delay')
+                record.accumulated_delay = max(delay_lst) + record.task_delay
 
 
     @api.depends('dependency_task_ids.task_id.completion_date', 'dependency_task_ids.task_id.date_end')
@@ -420,9 +427,13 @@ class TaskDependency(models.Model):
         date_end = date_start + planned_duration + buffer_time + on_hold
         """
         for record in self:
+            print(record.date_start,'hello')
             if record.date_start:
-                duration = record.planned_duration + record.on_hold + record.buffer_time
-                record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
+                duration = (record.planned_duration + record.on_hold + record.buffer_time) - 1
+                if duration == 0:
+                    record.write({'date_end': record.date_start + timedelta(hours=8)})
+                else:
+                    record.write({'date_end': record.get_forward_next_date(record.date_start, duration)})
 
 
     @api.depends('l_end_date', 'planned_duration', 'milestone', 'scheduling_mode')

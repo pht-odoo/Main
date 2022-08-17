@@ -95,7 +95,7 @@
                             <field name="on_hold"/>
                             <field name="buffer_time"/>
                             <field name="date_start" attrs="{'readonly':[('first_task', '=', False)]}"/>
-                            <field name="date_end"/>
+                            <field name="date_end" />
                             <field name="task_delay" readonly='1'/>
                             <field name="accumulated_delay" attrs="{'invisible':[('first_task', '=', True)]}" readonly='1'/>
                         </group>
